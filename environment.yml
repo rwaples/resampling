@@ -1,0 +1,13 @@
+name: resampling
+channels:
+ - conda
+ - conda-forge
+dependencies:
+ - numpy
+ - matplotlib
+ - seaborn
+ - scikit-learn
+ - scikit-allele
+ - msprime
+ - tskit
+ - jupyter
