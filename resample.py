@@ -18,13 +18,11 @@ def site_diversity(ts):
     return (n_different_pairs / npairs)
     
 
-def bt_resample_sites(params):
+def bt_resample_sites(diversity, n_boot):
     """
     Bootstrap resampling over sites 
     return a numpy array containing site_diversity of each bootstrap
     """
-    
-    diversity, n_boot = params
     
     num_sites = len(diversity)
     bt_weights = np.random.multinomial(
@@ -32,6 +30,7 @@ def bt_resample_sites(params):
         pvals=np.ones(num_sites)/num_sites,
         size=n_boot
     )
+    
     bt_vals = np.mean((diversity * bt_weights), axis=1)
     
     return bt_vals
@@ -44,14 +43,15 @@ def jk_resample_sites(diversity, obs_ts_diversity):
     '''
     
     num_sites = len(diversity)
-    jk_weights = np.ones((num_sites, len(diversity)), dtype=int)
+    jk_weights = np.ones((num_sites, num_sites), dtype=int)
     np.fill_diagonal(jk_weights, 0)
+    
+    delete_one = (diversity * jk_weights).sum(axis=1) / (num_sites - 1)
 
-    jk_vals = num_sites * obs_ts_diversity - \
-                (num_sites - 1) * np.mean((diversity * jk_weights), axis=1)
+    jk_vals = num_sites * obs_ts_diversity - (num_sites - 1) * delete_one
     
     return jk_vals
-
+                         
 
 def jk_block_resample_sites(diversity, obs_ts_diversity, n_fold):
     '''
@@ -61,28 +61,33 @@ def jk_block_resample_sites(diversity, obs_ts_diversity, n_fold):
     
     num_sites = len(diversity)
     jk_weights = np.ones((n_fold, num_sites), dtype=int)
-    kf = KFold(n_splits=n_fold, shuffle=True)
+    kf = KFold(n_splits=n_fold)
     
     # fill deleleted block with 0
     for i, (_, zero_index) in enumerate(kf.split(np.arange(num_sites))):
         jk_weights[i][zero_index] = 0
-
-    jk_vals = n_fold * obs_ts_diversity - \
-                (n_fold - 1) * np.mean((diversity * jk_weights), axis=1)
+        
+    delete_one = (diversity * jk_weights).sum(axis=1) / ((jk_weights == 1).sum(axis=1))
+    
+    jk_vals = n_fold * obs_ts_diversity - (n_fold - 1) * delete_one
     
     return jk_vals
+                    
     
-    
-def resample_sites(diversity, obs_ts_diversity, n_boot, n_fold):
-    '''
-    resample sites for bootstrap, jackknife and jackkife block 
+def resample_sites(ts):
+    '''resample sites for bootstrap, jackknife and jackkife block 
     @ts: observed population
     '''
+                         
+    n_boot, n_fold = 1000, ts.num_sites // 100
+                         
+    diversity = site_diversity(ts)
+    obs_ts_diversity = ts.diversity(span_normalise = False, windows = 'sites').mean()
     
     res = {}
+                         
+    res['bt_sites'] = bt_resample_sites(diversity, n_boot)
+    res['jk_sites'] = jk_resample_sites(diversity, obs_ts_diversity)
+    res['jk_block_sites'] = jk_block_resample_sites(diversity, obs_ts_diversity, n_fold)
     
-    #res['bt_sites'] = bt_resample_sites(diversity, n_boot)
-    #res['jk_sites'] = jk_resample_sites(diversity, ts.num_sites, obs_ts_diversity)
-    #res['jk_block_sites'] = jk_block_resample_sites(diversity, obs_ts_diversity, ts.num_sites, n_fold)
-    
-    return bt_resample_sites(diversity, n_boot)
+    return obs_ts_diversity, res
