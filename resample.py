@@ -20,74 +20,89 @@ def site_diversity(ts):
 
 def bt_resample_sites(diversity, n_boot):
     """
-    Bootstrap resampling over sites 
+    bootstrap resampling over sites 
     return a numpy array containing site_diversity of each bootstrap
     """
     
     num_sites = len(diversity)
-    bt_weights = np.random.multinomial(
+    weights = np.random.multinomial(
         n=num_sites,
         pvals=np.ones(num_sites)/num_sites,
         size=n_boot
     )
     
-    bt_vals = np.mean((diversity * bt_weights), axis=1)
+    vals = np.mean((diversity * weights), axis=1)
     
-    return bt_vals
+    return vals
     
     
-def jk_resample_sites(diversity, obs_ts_diversity):
+def jk_delete_one(diversity, obs_ts_diversity):
     '''
-    Jackknife resamle over sites
+    delete one jackknife resample over sites
     Return a numpy array containing the psedovalues of site diversity
     '''
     
     num_sites = len(diversity)
-    jk_weights = np.ones((num_sites, num_sites), dtype=int)
-    np.fill_diagonal(jk_weights, 0)
+    weigths = np.ones((num_sites, num_sites), dtype=int)
+    np.fill_diagonal(weigths, 0)
     
-    delete_one = (diversity * jk_weights).sum(axis=1) / (num_sites - 1)
+    deleted = (diversity * weigths).sum(axis=1) / (num_sites - 1)
 
-    jk_vals = num_sites * obs_ts_diversity - (num_sites - 1) * delete_one
+    vals = num_sites * obs_ts_diversity - (num_sites - 1) * deleted
     
-    return jk_vals
+    return deleted, vals
                          
 
-def jk_block_resample_sites(diversity, obs_ts_diversity, n_fold):
+def jk_delete_m(diversity, obs_ts_diversity, n_fold):
     '''
-    Jackknife Block resamle over sites
+    delete_m jackknife resamle over sites (block jackknife with the same number of sites in each block)
     Return a numpy array containing the psedovalues of site diversity
     '''
     
     num_sites = len(diversity)
-    jk_weights = np.ones((n_fold, num_sites), dtype=int)
+    weigths = np.ones((n_fold, num_sites), dtype=int)
     kf = KFold(n_splits=n_fold)
     
     # fill deleleted block with 0
     for i, (_, zero_index) in enumerate(kf.split(np.arange(num_sites))):
-        jk_weights[i][zero_index] = 0
+        weigths[i][zero_index] = 0
         
-    delete_one = (diversity * jk_weights).sum(axis=1) / ((jk_weights == 1).sum(axis=1))
+    deleted = (diversity * weigths).sum(axis=1) / ((weigths == 1).sum(axis=1))
     
-    jk_vals = n_fold * obs_ts_diversity - (n_fold - 1) * delete_one
+    vals = n_fold * obs_ts_diversity - (n_fold - 1) * deleted
     
-    return jk_vals
-                    
-    
-def resample_sites(ts):
-    '''resample sites for bootstrap, jackknife and jackkife block 
-    @ts: observed population
+    return deleted, vals
+
+
+def jk_delete_mj(diversity, obs_ts_diversity, n_fold):
     '''
-                         
-    n_boot, n_fold = 1000, ts.num_sites // 100
-                         
-    diversity = site_diversity(ts)
-    obs_ts_diversity = ts.diversity(span_normalise = False, windows = 'sites').mean()
+    delete_mj jackknife resampling methods over sits 
+    each block contains different number of sites
+    return a numpy array containing the psedovalues of site diversity
+    '''
     
-    res = {}
-                         
-    res['bt_sites'] = bt_resample_sites(diversity, n_boot)
-    res['jk_sites'] = jk_resample_sites(diversity, obs_ts_diversity)
-    res['jk_block_sites'] = jk_block_resample_sites(diversity, obs_ts_diversity, n_fold)
+    num_sites = len(diversity)
     
-    return obs_ts_diversity, res
+    # where to cut off the array
+    random = np.random.randint(10, n_fold, n_fold - 1, dtype=int)
+    cutoff = np.cumsum(random)
+    
+    # index of sites 
+    index = np.arange(num_sites)
+    index = np.split(index, cutoff)
+    
+    # number of sites in each fold
+    sizes = [len(index[i]) for i in range(len(index))]
+
+    weigths = np.ones((n_fold, num_sites), dtype=int)
+    
+    # fill deleleted block with 0
+    for i, indices in enumerate(index):
+        weigths[i][indices] = 0
+    
+    # site diversity aftering deleting one block
+    deleted = (diversity * weigths).sum(axis=1) / ((weigths == 1).sum(axis=1))
+    
+    vals = n_fold * obs_ts_diversity - (n_fold - 1) * deleted
+    
+    return deleted, vals, np.array(sizes)
