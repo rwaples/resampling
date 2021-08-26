@@ -48,9 +48,9 @@ def jk_delete_one(diversity, obs_ts_diversity):
     
     deleted = (diversity * weigths).sum(axis=1) / (num_sites - 1)
 
-    vals = num_sites * obs_ts_diversity - (num_sites - 1) * deleted
+    ps = num_sites * obs_ts_diversity - (num_sites - 1) * deleted
     
-    return deleted, vals
+    return deleted, ps
                          
 
 def jk_delete_m(diversity, obs_ts_diversity, n_fold):
@@ -69,9 +69,9 @@ def jk_delete_m(diversity, obs_ts_diversity, n_fold):
         
     deleted = (diversity * weigths).sum(axis=1) / ((weigths == 1).sum(axis=1))
     
-    vals = n_fold * obs_ts_diversity - (n_fold - 1) * deleted
+    ps = n_fold * obs_ts_diversity - (n_fold - 1) * deleted
     
-    return deleted, vals
+    return deleted, ps
 
 
 def jk_delete_mj(diversity, obs_ts_diversity, n_fold):
@@ -84,15 +84,19 @@ def jk_delete_mj(diversity, obs_ts_diversity, n_fold):
     num_sites = len(diversity)
     
     # where to cut off the array
-    random = np.random.randint(10, n_fold, n_fold - 1, dtype=int)
+    random = np.random.multinomial(
+        n=num_sites - n_fold,
+        pvals=np.ones(n_fold) / (n_fold),
+    )
+    random += 1
     cutoff = np.cumsum(random)
     
     # index of sites 
     index = np.arange(num_sites)
-    index = np.split(index, cutoff)
+    index = np.split(index, cutoff)[0:n_fold]
     
     # number of sites in each fold
-    sizes = [len(index[i]) for i in range(len(index))]
+    sizes = np.array([len(index[i]) for i in range(n_fold)])
 
     weigths = np.ones((n_fold, num_sites), dtype=int)
     
@@ -103,6 +107,8 @@ def jk_delete_mj(diversity, obs_ts_diversity, n_fold):
     # site diversity aftering deleting one block
     deleted = (diversity * weigths).sum(axis=1) / ((weigths == 1).sum(axis=1))
     
-    vals = n_fold * obs_ts_diversity - (n_fold - 1) * deleted
+    h = num_sites / sizes
     
-    return deleted, vals, np.array(sizes)
+    ps = h * obs_ts_diversity - (h - 1) * deleted
+    
+    return deleted, ps, np.array(sizes)
