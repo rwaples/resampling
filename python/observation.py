@@ -2,7 +2,7 @@
 import allel
 import numpy as np
 import simulation as sim
-from multiprocessing import Pool, cpu_count
+# from multiprocessing import Pool, cpu_count
 
 
 def jk_split(n_block, to_split):
@@ -22,18 +22,35 @@ def jk_split(n_block, to_split):
     return index, np.array(sizes)
 
 
+def generate_samples_index(individuals):
+    """return samples_index for the input ind_index
+    because of diploid, individual 1 has (2, 3) samples index
+    @individuals: a list of individuals
+    """
+    res = np.zeros(len(individuals) * 2, dtype=int)
+    for i, index in enumerate(individuals):
+        res[i * 2] = index * 2
+        res[i * 2 + 1] = index * 2 + 1
+
+    return res
+
+
 class Observation1:
     """observation of one population: for estimating the site diversity
     """
 
-    def __init__(self, pop_ts, num_inds, max_sites):
-        self.ts = sim.observe(pop_ts, num_inds, max_sites, num_pop=1)
+    def __init__(self, pop_ts, num_ind, max_sites):
+        self.ts = sim.observe(pop_ts, num_ind, max_sites, num_pop=1)
+        # index of haploid
+        self.pop_haploid = self.ts.samples(population=0)
+        # number of individuals
+        self.pop_num_ind = num_ind
         self.num_samples = self.ts.num_samples
         self.num_sites = self.ts.num_sites
         self.samples_index = np.arange(self.num_samples)
         self.sites_index = np.arange(self.num_sites)
         self.site_diversity = self.ts.diversity(span_normalise=False, windows='sites')
-        self.genos = self.ts.genotype_matrix()
+        self.geno = self.ts.genotype_matrix()
 
     def get_site_diversity(self, samples_index=None):
         """returns average pairwise diversity of a set of samples across a set of sites.
@@ -44,7 +61,7 @@ class Observation1:
         if samples_index is None:
             samples_index = self.samples_index
         num_samples = len(samples_index)
-        ac = self.genos[self.sites_index, :][:, samples_index].sum(1)
+        ac = self.geno[self.sites_index, :][:, samples_index].sum(1)
         num_pairs = int(num_samples * (num_samples - 1) / 2)
         n_different_pairs = ac * (num_samples - ac)
         return np.mean(n_different_pairs / num_pairs)
@@ -60,16 +77,17 @@ class Observation1:
         )
         return np.mean(self.site_diversity * weights, axis=1)
 
-    def bootstrap_samples_diversity(self, num_boot=500):
+    def bootstrap_ind_diversity(self, num_boot=500):
         """bootstrap over samples
         @num_boot: num of bootstrap times (default 500)
         """
-        pool = Pool(processes=cpu_count())
-        inputs = [np.random.choice(self.num_samples, self.num_samples, replace=True) for _ in range(num_boot)]
-        resample_values = pool.map(self.get_site_diversity, inputs)
-        pool.close()
-        pool.join()
-        return resample_values
+        # pool = Pool(processes=cpu_count())
+        inputs = [sim.sample_individuals(self.pop_haploid, self.pop_num_ind, replace=True)
+                  for _ in range(num_boot)]
+        values = list(map(self.get_site_diversity, inputs))
+        # pool.close()
+        # pool.join()
+        return values
 
     def jackknife_one_sites_diversity(self):
         """delete one jackknife resample over sites
@@ -78,15 +96,15 @@ class Observation1:
         np.fill_diagonal(weights, 0)
         return (self.site_diversity * weights).sum(axis=1) / (self.num_sites - 1)
 
-    def jackknife_one_samples_diversity(self):
+    def jackknife_one_ind_diversity(self):
         """delete one jackknife resample over samples
         """
-        pool = Pool(processes=cpu_count())
-        inputs = [np.delete(self.samples_index, i) for i in self.samples_index]
-        resample_values = pool.map(self.get_site_diversity, inputs)
-        pool.close()
-        pool.join()
-        return resample_values
+        # pool = Pool(processes=cpu_count())
+        inputs = [np.delete(self.pop_haploid, [i * 2, i * 2 + 1]) for i in range(self.pop_num_ind)]
+        values = list(map(self.get_site_diversity, inputs))
+        # pool.close()
+        # pool.join()
+        return values
 
     def jackknife_mj_sites_diversity(self):
         """delete_mj jackknife resampling methods over sits with unequal sizes
@@ -102,40 +120,44 @@ class Observation1:
 
         return (self.site_diversity * weights).sum(axis=1) / ((weights == 1).sum(axis=1)), sizes
 
-    def jackknife_mj_samples_diversity(self):
+    def jackknife_mj_ind_diversity(self):
         """delete_mj jackknife resampling methods over samples with unequal sizes
         """
-        n_block = int(np.sqrt(self.num_samples))
-        index, sizes = jk_split(n_block, self.samples_index)
+        n_block = int(np.sqrt(self.pop_num_ind))
+        # index of each individual
+        individuals = np.arange(self.pop_num_ind)
+        # block index after splitting
+        # sizes of individuals in each block
+        index, sizes = jk_split(n_block, individuals)
 
-        pool = Pool(processes=cpu_count())
-        inputs = [np.delete(self.samples_index, i) for i in index]
-        resample_values = pool.map(self.get_site_diversity, inputs), sizes
-        pool.close()
-        pool.join()
-        return resample_values
+        # pool = Pool(processes=cpu_count())
+        inputs = [generate_samples_index(np.delete(individuals, i)) for i in index]
+        values = list(map(self.get_site_diversity, inputs))
+        # pool.close()
+        # pool.join()
+        # sizes * 2 to get sizes of samples in each block
+        return values, sizes * 2
 
 
 class Observation2:
     """observation of two population: for estimating fst
     """
 
-    def __init__(self, pop_ts, num_inds, max_sites):
-        self.ts = sim.observe(pop_ts, num_inds, max_sites, num_pop=2)
-        self.popA = self.ts.samples(population=0)
-        self.popB = self.ts.samples(population=1)
+    def __init__(self, pop_ts, num_ind, max_sites):
+        self.ts = sim.observe(pop_ts, num_ind, max_sites, num_pop=2)
+        # haploid index for popA
+        self.popA_haploid = self.ts.samples(population=0)
+        self.popB_haploid = self.ts.samples(population=1)
         self.sites_index = np.arange(self.ts.num_sites)
-
         self.ga = allel.GenotypeArray(self.ts.genotype_matrix().reshape(self.ts.num_sites, self.ts.num_samples, 1),
                                       dtype='i1')
-        self.num, self.denom = allel.hudson_fst(self.ga[:, self.popA, :].count_alleles(),
-                                                self.ga[:, self.popB, :].count_alleles())
-        self.popA_num_inds = int(len(self.popA) / 2)
-        self.popB_num_inds = int(len(self.popB) / 2)
+        self.num, self.den = allel.hudson_fst(self.ga[:, self.popA_haploid, :].count_alleles(),
+                                              self.ga[:, self.popB_haploid, :].count_alleles())
+        # number of individuals in each population
+        self.popA_num_ind = self.popB_num_ind = num_ind
+        self.fst = np.sum(self.num) / np.sum(self.den)
 
-        self.fst = np.sum(self.num) / np.sum(self.denom)
-
-    def get_fst_general(self, params):
+    def get_fst_general(self, params=None):
         """returns Hudson's Fst: used for resampling over samples
 
         This function is general in the sense that all of:
@@ -144,35 +166,52 @@ class Observation2:
             @popA_samples = the samples from the first population to be used
             @popB_samples = the samples from the second population to be used
         """
-        # count alleles within each population at the selected sites and inds
-        popA_samples, popB_samples = params
+        # count alleles within each population at the selected sites and ind
+        if params is None:
+            popA_samples, popB_samples = self.popA_haploid, self.popB_haploid
+        else:
+            popA_samples, popB_samples = params
         ac1 = self.ga[self.sites_index][:, popA_samples, :].count_alleles()
         ac2 = self.ga[self.sites_index][:, popB_samples, :].count_alleles()
         # calculate Hudson's Fst (weighted)
-        num, denom = allel.hudson_fst(ac1, ac2)
-        return np.sum(num) / np.sum(denom)
+        num, den = allel.hudson_fst(ac1, ac2)
+        return np.sum(num) / np.sum(den)
 
-    def bootstrap_samples_fst(self, num_boot=500):
+    def bootstrap_ind_fst(self, num_boot=500):
         """Calculate Fst while bootstrap resampling over individuals.
         uses multiprocessing.Pool to run across multiple cores.
         @num_boot = number of bootstrap times
         """
-        inputs = [(sim.sample_individuals(self.popA, self.popA_num_inds, replace=True),
-                   sim.sample_individuals(self.popB, self.popB_num_inds, replace=True)
+        inputs = [(sim.sample_individuals(self.popA_haploid, self.popA_num_ind, replace=True),
+                   sim.sample_individuals(self.popB_haploid, self.popB_num_ind, replace=True)
                    ) for _ in range(num_boot)]
         return list(map(self.get_fst_general, inputs))
 
-    def jackknife_samples_fst(self):
+    def jackknife_one_ind_fst(self):
         """
         Calculate Fst while jackknife resampling over individuals.
         uses multiprocessing.Pool to run across multiple cores
         """
-        inputs = [(sim.sample_individuals(self.popA, self.popA_num_inds, replace=True), self.popB)
-                  for _ in range(self.popA_num_inds)] + \
-                 [(self.popA, sim.sample_individuals(self.popB, self.popB_num_inds, replace=True))
-                  for _ in range(self.popB_num_inds)]
+        inputs = [(np.delete(self.popA_haploid, [i, i + 1]), self.popB_haploid)
+                  for i in range(0, len(self.popA_haploid), 2)] + \
+                 [(self.popA_haploid, np.delete(self.popB_haploid, [i, i + 1]))
+                  for i in range(0, len(self.popB_haploid), 2)]
         values = list(map(self.get_fst_general, inputs))
         return values
+
+    def jackknife_mj_ind_fst(self):
+        n_block = int(np.sqrt(self.popA_num_ind))
+        # index of each individual for popA and popB
+        individuals = np.arange(self.popA_num_ind)
+        a_index, a_sizes = jk_split(n_block, individuals)
+        b_index, b_sizes = jk_split(n_block, individuals)
+
+        inputs = [(generate_samples_index(np.delete(individuals, i)), self.popB_haploid) for i in a_index] + \
+                 [(self.popA_haploid, len(self.popA_haploid) + generate_samples_index(np.delete(individuals, i)))
+                  for i in b_index]
+
+        values = list(map(self.get_fst_general, inputs))
+        return values, np.concatenate([a_sizes * 2, b_sizes * 2])
 
     def bootstrap_sites_fst(self, num_boot=500):
         """Calculate Fst for bootstrap of sites.
@@ -183,17 +222,17 @@ class Observation2:
             pvals=np.ones(self.ts.num_sites) / self.ts.num_sites,
             size=num_boot
         )
-        return (self.num * weights).sum(1) / (self.denom * weights).sum(1)
+        return (self.num * weights).sum(1) / (self.den * weights).sum(1)
 
     def jackknife_one_sites_fst(self):
         """Calculate Fst for jackknife of sites.
         """
-        num_sum, denom_sum = self.num.sum(), self.denom.sum()
-        return (num_sum - self.num) / (denom_sum - self.denom)
+        num_sum, den_sum = self.num.sum(), self.den.sum()
+        return (num_sum - self.num) / (den_sum - self.den)
 
     def jackknife_mj_sites_fst(self):
         n_block = int(np.sqrt(len(self.sites_index)))
         index, sizes = jk_split(n_block, self.sites_index)
         num = [np.sum(self.num[i]) for i in index]
-        denom = [np.sum(self.num[i]) for i in index]
-        return (self.num.sum() - num) / (self.denom.sum() - denom), sizes
+        den = [np.sum(self.num[i]) for i in index]
+        return (self.num.sum() - num) / (self.den.sum() - den), sizes

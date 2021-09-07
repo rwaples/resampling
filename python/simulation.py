@@ -83,8 +83,8 @@ def sample_individuals(haploid_indexes, n, replace):
     """
 
     # ensure the haploid indexes are consecutive
-    diff = np.diff(haploid_indexes)
-    assert np.sum(diff == 1) == (len(haploid_indexes)-1)
+    # diff = np.diff(haploid_indexes)
+    # assert np.sum(diff == 1) == (len(haploid_indexes)-1)
 
     ind_indexes = haploid_indexes[::2]
     ind_samples = np.sort(np.random.choice(ind_indexes, n, replace=replace))

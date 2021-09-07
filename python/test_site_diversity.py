@@ -12,14 +12,14 @@ class TestResampleMethods(unittest.TestCase):
             rec_rate=1e-8,
             mut_rate=1e-8
         )
-        self.num_inds, self.max_sites = 100, 1000
-        self.obs_ts = obs.Observation1(self.pop_ts, self.num_inds, self.max_sites)
+        self.num_ind, self.max_sites = 100, 1000
+        self.obs_ts = obs.Observation1(self.pop_ts, self.num_ind, self.max_sites)
 
     # test obs_ts values
     def test_obs(self):
         self.assertEqual(self.obs_ts.num_sites, self.max_sites)
-        self.assertEqual(self.obs_ts.num_samples, self.num_inds * 2)
-        self.assertEqual(self.obs_ts.genos.shape, (self.max_sites, self.num_inds * 2))
+        self.assertEqual(self.obs_ts.num_samples, self.num_ind * 2)
+        self.assertEqual(self.obs_ts.geno.shape, (self.max_sites, self.num_ind * 2))
 
     # test get_site_diversity function
     def test_get_site_diversity(self):
@@ -29,30 +29,30 @@ class TestResampleMethods(unittest.TestCase):
     # test bootstrap functions with default number of bootstrap
     def test_bootstrap(self):
         bt_sites = self.obs_ts.bootstrap_sites_diversity()
-        bt_samples = self.obs_ts.bootstrap_samples_diversity()
+        bt_samples = self.obs_ts.bootstrap_ind_diversity()
         self.assertEqual(len(bt_sites), 500)
         self.assertEqual(len(bt_samples), 500)
 
         # test bootstrap functions with input of num_boot
         num_boot = 100
         bt_sites_100 = self.obs_ts.bootstrap_sites_diversity(num_boot)
-        bt_samples_100 = self.obs_ts.bootstrap_samples_diversity(num_boot)
+        bt_samples_100 = self.obs_ts.bootstrap_ind_diversity(num_boot)
         self.assertEqual(len(bt_sites_100), 100)
         self.assertEqual(len(bt_samples_100), 100)
 
     # test jackknife delete one functions
     def test_jackknife_one(self):
         jk_one_sites = self.obs_ts.jackknife_one_sites_diversity()
-        jk_one_samples = self.obs_ts.jackknife_one_samples_diversity()
+        jk_one_samples = self.obs_ts.jackknife_one_ind_diversity()
         self.assertEqual(len(jk_one_sites), self.obs_ts.num_sites)
         self.assertEqual(len(jk_one_samples), self.obs_ts.num_samples)
 
     # test jackknife delete mj functions
     def test_jackknife_mj(self):
         n_block_sites = int(np.sqrt(self.obs_ts.num_sites))
-        n_block_samples = int(np.sqrt(self.obs_ts.num_samples))
+        n_block_samples = int(np.sqrt(self.obs_ts.pop_num_ind))
         jk_mj_sites, sites_sizes = self.obs_ts.jackknife_mj_sites_diversity()
-        jk_mj_samples, samples_sizes = self.obs_ts.jackknife_mj_samples_diversity()
+        jk_mj_samples, samples_sizes = self.obs_ts.jackknife_mj_ind_diversity()
         self.assertEqual(len(jk_mj_sites), n_block_sites)
         self.assertEqual(len(sites_sizes), n_block_sites)
         self.assertEqual(len(jk_mj_samples), n_block_samples)
