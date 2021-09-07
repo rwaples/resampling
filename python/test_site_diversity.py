@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
-import simulation as sim
-from observation import Observation1
+from python import simulation as sim
+from python import observation as obs
 
 
 class TestResampleMethods(unittest.TestCase):
@@ -13,7 +13,7 @@ class TestResampleMethods(unittest.TestCase):
             mut_rate=1e-8
         )
         self.num_inds, self.max_sites = 100, 1000
-        self.obs_ts = Observation1(self.pop_ts, self.num_inds, self.max_sites)
+        self.obs_ts = obs.Observation1(self.pop_ts, self.num_inds, self.max_sites)
 
     # test obs_ts values
     def test_obs(self):

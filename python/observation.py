@@ -25,6 +25,7 @@ def jk_split(n_block, to_split):
 class Observation1:
     """observation of one population: for estimating the site diversity
     """
+
     def __init__(self, pop_ts, num_inds, max_sites):
         self.ts = sim.observe(pop_ts, num_inds, max_sites, num_pop=1)
         self.num_samples = self.ts.num_samples
@@ -118,20 +119,21 @@ class Observation1:
 class Observation2:
     """observation of two population: for estimating fst
     """
+
     def __init__(self, pop_ts, num_inds, max_sites):
         self.ts = sim.observe(pop_ts, num_inds, max_sites, num_pop=2)
-        self.popA = self.ts.sample(population=0)
-        self.popB = self.ts.sample(population=1)
+        self.popA = self.ts.samples(population=0)
+        self.popB = self.ts.samples(population=1)
         self.sites_index = np.arange(self.ts.num_sites)
 
-        self.__ga = allel.GenotypeArray(self.ts.genotype_matrix().reshape(self.ts.num_sites, self.ts.num_samples, 1),
-                                        dtype='i1')
-        self.__num, self.__denom = allel.hudson_fst(self.__ga[:, self.popA, :].count_alleles(),
-                                                    self.__ga[:, self.popB, :].count_alleles())
-        self.__popA_num_inds = int(len(self.popA) / 2)
-        self.__popB_num_inds = int(len(self.popB) / 2)
+        self.ga = allel.GenotypeArray(self.ts.genotype_matrix().reshape(self.ts.num_sites, self.ts.num_samples, 1),
+                                      dtype='i1')
+        self.num, self.denom = allel.hudson_fst(self.ga[:, self.popA, :].count_alleles(),
+                                                self.ga[:, self.popB, :].count_alleles())
+        self.popA_num_inds = int(len(self.popA) / 2)
+        self.popB_num_inds = int(len(self.popB) / 2)
 
-        self.fst = np.sum(self.__num) / np.sum(self.__denom)
+        self.fst = np.sum(self.num) / np.sum(self.denom)
 
     def get_fst_general(self, params):
         """returns Hudson's Fst: used for resampling over samples
@@ -144,8 +146,8 @@ class Observation2:
         """
         # count alleles within each population at the selected sites and inds
         popA_samples, popB_samples = params
-        ac1 = self.__ga[self.sites_index][:, popA_samples, :].count_alleles()
-        ac2 = self.__ga[self.sites_index][:, popB_samples, :].count_alleles()
+        ac1 = self.ga[self.sites_index][:, popA_samples, :].count_alleles()
+        ac2 = self.ga[self.sites_index][:, popB_samples, :].count_alleles()
         # calculate Hudson's Fst (weighted)
         num, denom = allel.hudson_fst(ac1, ac2)
         return np.sum(num) / np.sum(denom)
@@ -155,24 +157,24 @@ class Observation2:
         uses multiprocessing.Pool to run across multiple cores.
         @num_boot = number of bootstrap times
         """
-        inputs = [(sim.sample_individuals(self.popA, self.__popA_num_inds, replace=True),
-                   sim.sample_individuals(self.popB, self.__popB_num_inds, replace=True),
+        inputs = [(sim.sample_individuals(self.popA, self.popA_num_inds, replace=True),
+                   sim.sample_individuals(self.popB, self.popB_num_inds, replace=True)
                    ) for _ in range(num_boot)]
-        return self.__pool.map(self.get_fst_general, inputs)
+        return list(map(self.get_fst_general, inputs))
 
     def jackknife_samples_fst(self):
         """
         Calculate Fst while jackknife resampling over individuals.
         uses multiprocessing.Pool to run across multiple cores
         """
-        inputs = [(sim.sample_individuals(self.popA, self.__popA_num_inds, replace=True), self.popB)
-                  for _ in range(self.__popA_num_inds)] + \
-                 [(self.popA, sim.sample_individuals(self.popB, self.__popB_num_inds, replace=True))
-                  for _ in range(self.__popB_num_inds)]
+        inputs = [(sim.sample_individuals(self.popA, self.popA_num_inds, replace=True), self.popB)
+                  for _ in range(self.popA_num_inds)] + \
+                 [(self.popA, sim.sample_individuals(self.popB, self.popB_num_inds, replace=True))
+                  for _ in range(self.popB_num_inds)]
+        values = list(map(self.get_fst_general, inputs))
+        return values
 
-        return self.__pool.map(self.get_fst_general, inputs)
-
-    def bootstrap_sites_fst(self, num_boot):
+    def bootstrap_sites_fst(self, num_boot=500):
         """Calculate Fst for bootstrap of sites.
         @num_boot = number of bootstrap re-samplings
         """
@@ -181,12 +183,17 @@ class Observation2:
             pvals=np.ones(self.ts.num_sites) / self.ts.num_sites,
             size=num_boot
         )
-        return (self.__num * weights).sum(1) / (self.__denom * weights).sum(1)
+        return (self.num * weights).sum(1) / (self.denom * weights).sum(1)
 
-    def jackknife_sites_fst(self):
+    def jackknife_one_sites_fst(self):
         """Calculate Fst for jackknife of sites.
         """
-        num_sum, denom_sum = self.__num.sum(), self.__denom.sum()
-        return (num_sum - self.__num) / (denom_sum - self.__denom)
+        num_sum, denom_sum = self.num.sum(), self.denom.sum()
+        return (num_sum - self.num) / (denom_sum - self.denom)
 
-    # TODO: jackknife_mj_sites_fst
+    def jackknife_mj_sites_fst(self):
+        n_block = int(np.sqrt(len(self.sites_index)))
+        index, sizes = jk_split(n_block, self.sites_index)
+        num = [np.sum(self.num[i]) for i in index]
+        denom = [np.sum(self.num[i]) for i in index]
+        return (self.num.sum() - num) / (self.denom.sum() - denom), sizes

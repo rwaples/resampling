@@ -1,0 +1,2 @@
+experiment,num_inds,max_sites,pop_ts_fst,bt_sites,jk_delete_one_sites,jk_delete_mj_sites,bt_samples,jk_samples
+0,50,1000,0.11486434456321563,0.93,0.92,0.98,0.67,1.0

@@ -103,12 +103,6 @@ def observe(ts, num_inds, max_sites, num_pop):
     @max_sites = retain at most max_sites, from among variable sites
     @num_pop = number of population
     """
-    '''
-    popA = ts.samples(population=0)
-    popA_inds = sample_individuals(popA, num_inds, replace=False)
-    all_inds = popA_inds
-    obs_ts = ts.simplify(samples=all_inds, filter_sites=False)
-    '''
     pop = [ts.samples(population=i) for i in range(num_pop)]
     pop_inds = [sample_individuals(i, num_inds, replace=False) for i in pop]
     all_inds = np.concatenate(pop_inds)
