@@ -14,6 +14,14 @@ import simulation as sim
 import observation as obs
 from datetime import datetime
 
+columns = ['experiment', 'num_ind', 'max_sites', 'num_observation',
+           'seq_len', 'rec_rate', 'mut_rate', 'population value',
+           'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
+           'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
+           'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
+           'bt_ind_lower', 'bt_ind_within', 'bt_ind_above',
+           'jk_ind_lower', 'jk_ind_within', 'jk_ind_above']
+
 
 def check(intervals, pop_val):
     """check whether the population values is with in, lower or above the confidence interval
@@ -21,7 +29,7 @@ def check(intervals, pop_val):
     @intervals: a tuple (lower, upper)
     @pop_val: population value (pop_ts_diversity, pop_fst)
     """
-    result = np.zeros(18)
+    result = np.zeros(len(intervals[0]) * 3)
     for i in range(len(intervals)):
         for j, interval in enumerate(intervals[i]):
             if pop_val < interval[0]:
@@ -69,6 +77,7 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
     @mut_rate = mutation rate, units = rate per bp, per generation
     """
     result = []
+    n_block = int(seq_len // 5e6)
     start = datetime.now()
     print('Experiment starts at:', start)
 
@@ -85,8 +94,8 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
         pop_ts_fst = get_fst(pop_ts)
         print('Population site fst:', pop_ts_fst)
 
-        num_ind_list = [50, 100, 150]
-        max_sites_list = [1000, 2000, 3000, 4000, 5000]
+        num_ind_list = [50]  # [50, 100, 150]
+        max_sites_list = [1000]  # [1000, 2000, 3000, 4000, 5000]
         assert max(num_ind_list) <= pop_ts.num_individuals / 2 and max(max_sites_list) <= pop_ts.num_sites
 
         for num_ind in num_ind_list:
@@ -106,7 +115,7 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
                                               confidence, obs_ts_fst)
                     jk_one_sites = ci.jk_delete_one(obs_ts.jackknife_one_sites_fst(),
                                                     confidence, obs_ts_fst)
-                    jk_mj_sites = ci.jk_delete_mj(obs_ts.jackknife_mj_sites_fst(),
+                    jk_mj_sites = ci.jk_delete_mj(obs_ts.jackknife_mj_sites_fst(n_block),
                                                   confidence, obs_ts_fst)
 
                     # confidence intervals when resampling over samples
@@ -114,31 +123,20 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
                                             confidence, obs_ts_fst)
                     jk_one_ind = ci.jk_delete_one(obs_ts.jackknife_one_ind_fst(),
                                                   confidence, obs_ts_fst)
-                    jk_mj_ind = ci.jk_delete_mj(obs_ts.jackknife_mj_ind_fst(),
-                                                confidence, obs_ts_fst)
 
                     intervals.append([bt_sites, jk_one_sites, jk_mj_sites,
-                                      bt_ind, jk_one_ind, jk_mj_ind])
+                                      bt_ind, jk_one_ind])
 
                 # where the pop_ts_fst is located relative to the confidence interval
-                location = check(intervals, pop_ts_fst)
-                # print(location)
+                loc = check(intervals, pop_ts_fst)
                 print('Resample run time:', datetime.now() - resample_start)
                 result.append([exp, num_ind, max_sites, num_obs,
                                seq_len, rec_rate, mut_rate, pop_ts_fst]
-                              + location)
+                              + loc)
     print('Experiment run time:', datetime.now() - start, '\n')
     # save the results to csv file
     result_df = pd.DataFrame(result)
-    result_df.columns = ['experiment', 'num_ind', 'max_sites', 'num_observation',
-                         'seq_len', 'rec_rate', 'mut_rate', 'pop_ts_diversity',
-                         'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
-                         'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
-                         'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
-                         'bt_ind_lower', 'bt_ind_within', 'bt_ind_above',
-                         'jk_one_ind_lower', 'jk_one_ind_within', 'jk_one_ind_above',
-                         'jk_mj_ind_lower', 'jk_mj_ind_within', 'jk_mj_ind_above']
-
+    result_df.columns = columns
     return result_df
 
 
