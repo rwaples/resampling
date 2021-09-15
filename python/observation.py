@@ -105,7 +105,7 @@ class Observation1:
         np.random.seed(self.seed)
         inputs = np.zeros((num_boot, self.num_sites), dtype=int)
         for i in range(num_boot):
-            np.random.choice(self.seed + num_boot)
+            np.random.seed(self.seed + num_boot)
             inputs[i] = np.random.choice(self.num_sites, self.num_sites, replace=True)
 
         values = list(map(self.get_hetero, inputs))

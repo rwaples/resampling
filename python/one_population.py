@@ -156,6 +156,6 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
 if __name__ == '__main__':
     prefix = datetime.now().strftime("%m%d")
-    div_df, hetero_df = experiment(num_exp=1, num_obs=100, confidence=0.95)
+    div_df, hetero_df = experiment(num_exp=3, num_obs=100, confidence=0.95)
     div_df.to_csv(f'../data/{prefix}_site_diversity.csv', index=False)
     hetero_df.to_csv(f'../data/{prefix}_heterozygosity.csv', index=False)
