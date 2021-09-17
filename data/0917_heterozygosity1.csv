@@ -1,0 +1,4 @@
+experiment,num_ind,max_sites,num_observation,seq_len,rec_rate,mut_rate,population value,bt_sites_lower,bt_sites_within,bt_sites_above,jk_one_sites_lower,jk_one_sites_within,jk_one_sites_above,jk_mj_sites_lower,jk_mj_sites_within,jk_mj_sites_above,bt_ind_lower,bt_ind_within,bt_ind_above,jk_ind_lower,jk_ind_within,jk_ind_above
+0,50,1000,100,1000000000.0,1e-08,1e-08,0.15425482647557698,1.0,96.0,3.0,1.0,95.0,4.0,1.0,96.0,3.0,33.0,44.0,23.0,32.0,47.0,21.0
+1,50,1000,100,1000000000.0,1e-08,1e-08,0.14869702791275852,4.0,90.0,6.0,4.0,91.0,5.0,4.0,91.0,5.0,25.0,48.0,27.0,25.0,48.0,27.0
+2,50,1000,100,1000000000.0,1e-08,1e-08,0.15081207074809838,1.0,95.0,4.0,1.0,95.0,4.0,1.0,95.0,4.0,26.0,46.0,28.0,26.0,46.0,28.0

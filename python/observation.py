@@ -1,10 +1,12 @@
-# Observation Class
+"""This file contains two classes object
+First class is the Div class that generates an observation data from population with one subpopulation
+and uses resample methods to estimate diversity and heterozygosity values
+The second class is the Fst class that generates and observation from population with two subpopulation
+and uses resample methods to estimate the fst values
+"""
 import allel
 import numpy as np
 import simulation as sim
-
-
-# from multiprocessing import Pool, cpu_count
 
 
 def jk_split(n_block, to_split, seed):
@@ -27,8 +29,8 @@ def jk_split(n_block, to_split, seed):
 
 def generate_samples_index(individuals):
     """return samples_index for the input ind_index
-    because of diploid, individual 1 has (2, 3) samples index
-    @individuals: a list of individuals
+    because of diploid, individual 1 has sample index (2, 3)
+    @individuals: a list of individuals index
     """
     res = np.zeros(len(individuals) * 2, dtype=int)
     for i, index in enumerate(individuals):
@@ -38,7 +40,7 @@ def generate_samples_index(individuals):
     return res
 
 
-class Observation1:
+class Div:
     """observation of one population: for estimating the diversity and heterozygosity
     """
 
@@ -51,7 +53,7 @@ class Observation1:
         """
         self.seed = seed
         self.ts = sim.observe(pop_ts, num_ind, max_sites, num_pop=1, seed=self.seed)
-        # index of haploid
+        # index of haploid also samples index
         self.pop_haploid = self.ts.samples(population=0)
         # number of individuals
         self.pop_num_ind = num_ind
@@ -103,11 +105,7 @@ class Observation1:
         @num_boot: num of bootstrap times (default 500)
         """
         np.random.seed(self.seed)
-        inputs = np.zeros((num_boot, self.num_sites), dtype=int)
-        for i in range(num_boot):
-            np.random.seed(self.seed + num_boot)
-            inputs[i] = np.random.choice(self.num_sites, self.num_sites, replace=True)
-
+        inputs = np.random.choice(self.sites_index, (num_boot, self.num_sites), replace=True)
         values = list(map(self.get_hetero, inputs))
         return values
 
@@ -180,28 +178,8 @@ class Observation1:
         values = list(map(self.get_hetero, inputs))
         return values, sizes
 
-    '''
-    def jackknife_mj_ind_diversity(self):
-        """delete_mj jackknife resampling methods over samples with unequal sizes
-        """
-        n_block = int(np.sqrt(self.pop_num_ind))
-        # index of each individual
-        individuals = np.arange(self.pop_num_ind)
-        # block index after splitting
-        # sizes of individuals in each block
-        index, sizes = jk_split(n_block, individuals)
 
-        # pool = Pool(processes=cpu_count())
-        inputs = [generate_samples_index(np.delete(individuals, i)) for i in index]
-        values = list(map(self.get_site_diversity, inputs))
-        # pool.close()
-        # pool.join()
-        # sizes * 2 to get sizes of samples in each block
-        return values, sizes * 2
-    '''
-
-
-class Observation2:
+class Fst:
     """observation of two population: for estimating fst
     """
 
@@ -251,9 +229,12 @@ class Observation2:
         uses multiprocessing.Pool to run across multiple cores.
         @num_boot = number of bootstrap times
         """
-        inputs = [(sim.sample_individuals(self.popA_haploid, self.popA_num_ind, replace=True, seed=i),
-                   sim.sample_individuals(self.popB_haploid, self.popB_num_ind, replace=True, seed=i + num_boot)
-                   ) for i in range(num_boot)]
+        np.random.seed(self.seed)
+        seeds = np.random.randint(0, 2 ** 32 - 1, num_boot * 2)
+        inputs = [(sim.sample_individuals(self.popA_haploid, self.popA_num_ind, replace=True, seed=seeds[i]),
+                   sim.sample_individuals(self.popB_haploid, self.popB_num_ind, replace=True, seed=seeds[i + 1])
+                   ) for i in range(0, num_boot * 2, 2)]
+
         return list(map(self.get_fst_general, inputs))
 
     def jackknife_one_ind_fst(self):
@@ -267,22 +248,6 @@ class Observation2:
                   for i in range(0, len(self.popB_haploid), 2)]
         values = list(map(self.get_fst_general, inputs))
         return values
-
-    """
-    def jackknife_mj_ind_fst(self):
-        n_block = int(np.sqrt(self.popA_num_ind))
-        # index of each individual for popA and popB
-        individuals = np.arange(self.popA_num_ind)
-        a_index, a_sizes = jk_split(n_block, individuals)
-        b_index, b_sizes = jk_split(n_block, individuals)
-
-        inputs = [(generate_samples_index(np.delete(individuals, i)), self.popB_haploid) for i in a_index] + \
-                 [(self.popA_haploid, len(self.popA_haploid) + generate_samples_index(np.delete(individuals, i)))
-                  for i in b_index]
-
-        values = list(map(self.get_fst_general, inputs))
-        return values, np.concatenate([a_sizes * 2, b_sizes * 2])
-    """
 
     def bootstrap_sites_fst(self, num_boot=500):
         """Calculate Fst for bootstrap of sites.
@@ -305,5 +270,5 @@ class Observation2:
     def jackknife_mj_sites_fst(self, n_block):
         index, sizes = jk_split(n_block, self.sites_index, self.seed)
         num = [np.sum(self.num[i]) for i in index]
-        den = [np.sum(self.num[i]) for i in index]
+        den = [np.sum(self.den[i]) for i in index]
         return (self.num.sum() - num) / (self.den.sum() - den), sizes

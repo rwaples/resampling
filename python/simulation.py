@@ -1,4 +1,6 @@
-# generate simulated pop gen data
+"""This file contains methods for generating population data
+as well as observation data
+"""
 import numpy as np
 import msprime
 

@@ -9,37 +9,10 @@ Resampling methods:
 import pandas as pd
 import numpy as np
 import allel
-import intervals as ci
 import simulation as sim
 import observation as obs
 from datetime import datetime
-
-columns = ['experiment', 'num_ind', 'max_sites', 'num_observation',
-           'seq_len', 'rec_rate', 'mut_rate', 'population value',
-           'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
-           'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
-           'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
-           'bt_ind_lower', 'bt_ind_within', 'bt_ind_above',
-           'jk_ind_lower', 'jk_ind_within', 'jk_ind_above']
-
-
-def check(intervals, pop_val):
-    """check whether the population values is with in, lower or above the confidence interval
-    return 1 if True else 0
-    @intervals: a tuple (lower, upper)
-    @pop_val: population value (pop_ts_diversity, pop_fst)
-    """
-    result = np.zeros(len(intervals[0]) * 3)
-    for i in range(len(intervals)):
-        for j, interval in enumerate(intervals[i]):
-            if pop_val < interval[0]:
-                result[j * 3] += 1
-            elif interval[0] <= pop_val <= interval[1]:
-                result[j * 3 + 1] += 1
-            else:
-                result[j * 3 + 2] += 1
-
-    return list(result)
+from div import columns, location, calculate_ints
 
 
 def get_fst(ts):
@@ -63,7 +36,7 @@ def get_fst(ts):
 
 
 def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
-               split_time=50, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8):
+               split_time=50, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8, seed=None):
     """Run experiment for resampling of site diversity
     @num_exp: number of experiment to run
     @num_obs: number of observations for each num_ind and max_sites
@@ -75,65 +48,71 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
     @seq_len = length of the genome, units ~ base-pairs
     @rec_rate = recombination rate, units = rate per bp, per generation
     @mut_rate = mutation rate, units = rate per bp, per generation
+    @seed: set seed for the experiment
     """
     result = []
     n_block = int(seq_len // 5e6)
-    start = datetime.now()
-    print('Experiment starts at:', start)
+    np.random.seed(seed)
+    # generate seeds for population ts
+    ts_seeds = np.random.randint(0, 2 ** 32 - 1, num_exp)
 
     for exp in range(num_exp):
-        print('Experiment:', exp)
+        start = datetime.now()
+        print(f'\n Experiment {exp} starts at:', exp)
 
         pop_ts = sim.sim_population(
             diploid_size=diploid_size,
             split_time=split_time,
             seq_len=seq_len,
             rec_rate=rec_rate,
-            mut_rate=mut_rate
+            mut_rate=mut_rate,
+            seed=ts_seeds[exp]
         )
+
         pop_ts_fst = get_fst(pop_ts)
         print('Population site fst:', pop_ts_fst)
 
         num_ind_list = [50]  # [50, 100, 150]
         max_sites_list = [1000]  # [1000, 2000, 3000, 4000, 5000]
-        assert max(num_ind_list) <= pop_ts.num_individuals / 2 and max(max_sites_list) <= pop_ts.num_sites
+        assert max(num_ind_list) <= pop_ts.num_individuals and max(max_sites_list) <= pop_ts.num_sites, \
+            "Number of ind and max_sites must be smaller than the population"
 
+        # generate seeds for all possible observation ts
+        np.random.seed(ts_seeds[exp])
+        obs_seeds = np.random.randint(0, 2 ** 32 - 1, size=(len(num_ind_list) * len(max_sites_list), num_obs))
+
+        row = 0
         for num_ind in num_ind_list:
             for max_sites in max_sites_list:
                 print(f'The shape of observed population (num_ind, max_sites) is: {num_ind, max_sites}')
-                resample_start = datetime.now()
-                # print('Resample starts at:', resample_start)
-
-                intervals = []
+                position = np.zeros((num_obs, 15))
 
                 for j in range(num_obs):
-                    obs_ts = obs.Observation2(pop_ts, num_ind, max_sites)
-                    obs_ts_fst = obs_ts.fst
+                    obs_ts = obs.Fst(pop_ts, num_ind, max_sites, seed=obs_seeds[row][j])
 
-                    # confidence intervals bound when resampling over sites
-                    bt_sites = ci.bt_standard(obs_ts.bootstrap_sites_fst(),
-                                              confidence, obs_ts_fst)
-                    jk_one_sites = ci.jk_delete_one(obs_ts.jackknife_one_sites_fst(),
-                                                    confidence, obs_ts_fst)
-                    jk_mj_sites = ci.jk_delete_mj(obs_ts.jackknife_mj_sites_fst(n_block),
-                                                  confidence, obs_ts_fst)
+                    # confidence intervals of resampling over sites for fst
+                    intervals_sites_fst = calculate_ints([obs_ts.bootstrap_sites_fst(),
+                                                          obs_ts.jackknife_one_sites_fst(),
+                                                          obs_ts.jackknife_mj_sites_fst(n_block)],
+                                                         confidence, obs_ts.fst)
 
-                    # confidence intervals when resampling over samples
-                    bt_ind = ci.bt_standard(obs_ts.bootstrap_ind_fst(),
-                                            confidence, obs_ts_fst)
-                    jk_one_ind = ci.jk_delete_one(obs_ts.jackknife_one_ind_fst(),
-                                                  confidence, obs_ts_fst)
+                    # confidence intervals of resampling over individuals for fst
+                    intervals_ind_fst = calculate_ints([obs_ts.bootstrap_ind_fst(),
+                                                        obs_ts.jackknife_one_ind_fst()],
+                                                       confidence, obs_ts.fst)
 
-                    intervals.append([bt_sites, jk_one_sites, jk_mj_sites,
-                                      bt_ind, jk_one_ind])
+                    # record the position pop value is relative to the intervals
+                    position[j] = location(np.concatenate([intervals_sites_fst, intervals_ind_fst]),
+                                           pop_ts_fst)
 
-                # where the pop_ts_fst is located relative to the confidence interval
-                loc = check(intervals, pop_ts_fst)
-                print('Resample run time:', datetime.now() - resample_start)
                 result.append([exp, num_ind, max_sites, num_obs,
                                seq_len, rec_rate, mut_rate, pop_ts_fst]
-                              + loc)
-    print('Experiment run time:', datetime.now() - start, '\n')
+                              + list(position.sum(0)))
+
+        print(f'Experiment {exp} runs:', datetime.now() - start)
+        print('Fst outcomes: \n')
+        print(result[exp][8:])
+
     # save the results to csv file
     result_df = pd.DataFrame(result)
     result_df.columns = columns
@@ -141,6 +120,7 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
 
 
 if __name__ == '__main__':
-    prefix = datetime.now().strftime("%m%d")
-    df = experiment(num_exp=1, num_obs=20, confidence=0.95)
-    df.to_csv(f'../data/{prefix}_fst.csv', index=False)
+    prefix = datetime.now().strftime("%m%d%H%M")
+    seed = 2
+    df = experiment(num_exp=1, num_obs=100, confidence=0.95, seed=seed)
+    df.to_csv(f'../data/{prefix}_fst.csv{seed}', index=False)
