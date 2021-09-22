@@ -70,6 +70,7 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
         )
 
         pop_ts_fst = get_fst(pop_ts)
+        print('Population num sites is:', pop_ts.num_sites)
         print('Population site fst:', pop_ts_fst)
 
         num_ind_list = [50]
