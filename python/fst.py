@@ -72,8 +72,8 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
         pop_ts_fst = get_fst(pop_ts)
         print('Population site fst:', pop_ts_fst)
 
-        num_ind_list = [50]  # [50, 100, 150]
-        max_sites_list = [1000]  # [1000, 2000, 3000, 4000, 5000]
+        num_ind_list = [50]
+        max_sites_list = [5000, 20000, 50000]
         assert max(num_ind_list) <= pop_ts.num_individuals and max(max_sites_list) <= pop_ts.num_sites, \
             "Number of ind and max_sites must be smaller than the population"
 
@@ -121,6 +121,11 @@ def experiment(num_exp, num_obs, confidence=0.95, diploid_size=200,
 
 if __name__ == '__main__':
     prefix = datetime.now().strftime("%m%d%H%M")
-    seed = 2
-    df = experiment(num_exp=1, num_obs=100, confidence=0.95, seed=seed)
-    df.to_csv(f'../data/{prefix}_fst.csv{seed}', index=False)
+    seed = 1
+    diploid_size = [200, 1000, 1500]
+    seq_len = [1e8, 5e8, 1e9]
+    for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
+        df = experiment(num_exp=1, num_obs=100, diploid_size=d, seq_len=s, confidence=0.95, seed=seed)
+        df.to_csv(f'../data/{prefix}_fst.csv_{i}', index=False)
+        # uncomment this if you want to run for all paris of diploid_size and seq_len
+        break
