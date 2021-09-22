@@ -141,9 +141,9 @@ def experiment(num_exp, num_obs, confidence=0.95,
                                                           confidence, obs_ts_hetero)
 
                     position_div[j] = location(np.concatenate([intervals_sites_diversity, intervals_ind_diversity]),
-                                                pop_ts_diversity)
+                                               pop_ts_diversity)
                     position_hetero[j] = location(np.concatenate([intervals_sites_hetero, intervals_ind_hetero]),
-                                                   pop_ts_hetero)
+                                                  pop_ts_hetero)
 
                 # update the row number
                 row += 1
@@ -174,11 +174,10 @@ if __name__ == '__main__':
     prefix = datetime.now().strftime("%m%d%H%M")
     seed = 1
     diploid_size = [200, 1000, 1500]
-    seq_len = [1e8, 5e8,  1e9]
+    seq_len = [1e8, 5e8, 1e9]
     for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
         div_df, hetero_df = experiment(num_exp=1, num_obs=100, diploid_size=d, seq_len=s, seed=seed)
         div_df.to_csv(f'../data/{prefix}_site_diversity_{i}.csv', index=False)
         hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{i}.csv', index=False)
         # uncomment this if you want to run for all paris of diploid_size and seq_len
         break
-
