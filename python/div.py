@@ -31,7 +31,7 @@ def location(intervals, pop_val):
     @intervals: a list of intervals from bt, jk_one, and jk_mj
     @pop_val: float, population value (pop_ts_diversity)
     """
-    result = np.zeros(len(intervals) * 3)
+    result = np.zeros(len(intervals) * 3, dtype=int)
 
     for j, interval in enumerate(intervals):
         if pop_val < interval[0]:
@@ -98,8 +98,8 @@ def experiment(num_exp, num_obs, confidence=0.95,
         # change the list here if you would like to explore more
         num_ind_list = [50]  # [50, 100, 150]
         max_sites_list = [5000, 20000, 50000]  # [1000, 2000, 3000, 4000, 5000]
-        assert max(num_ind_list) <= pop_ts.num_individuals and max(max_sites_list) <= pop_ts.num_sites, \
-            "Number of ind and max_sites must be smaller than the population"
+        #assert max(num_ind_list) <= pop_ts.num_individuals and max(max_sites_list) <= pop_ts.num_sites, \
+        #    "Number of ind and max_sites must be smaller than the population"
 
         # generate seeds for all possible observation ts
         np.random.seed(ts_seeds[exp])
@@ -109,11 +109,13 @@ def experiment(num_exp, num_obs, confidence=0.95,
         row = 0
         for num_ind in num_ind_list:
             for max_sites in max_sites_list:
-                print(f'The shape of observed population (num_ind, max_sites) is: {num_ind, max_sites}')
-                position_div = np.zeros((num_obs, 15))
-                position_hetero = np.zeros((num_obs, 15))
+                print(f'The desired observation is (num_ind, max_sites) is: {num_ind, max_sites}')
+                position_div = np.zeros((num_obs, 15), dtype=int)
+                position_hetero = np.zeros((num_obs, 15), dtype=int)
 
                 for j in range(num_obs):
+                    if max_sites > pop_ts.num_sites:
+                        max_sites = pop_ts.num_sites
                     obs_ts = obs.Div(pop_ts, num_ind, max_sites, seed=obs_seeds[row][j])
                     obs_ts_diversity = np.mean(obs_ts.site_diversity)
                     obs_ts_hetero = np.mean(obs_ts.hetero)
@@ -156,9 +158,9 @@ def experiment(num_exp, num_obs, confidence=0.95,
                                      + list(position_hetero.sum(0)))
 
         print(f'Experiment {exp} runs:', datetime.now() - start)
-        print('Diversity outcomes: \n')
+        print('Diversity outcomes:')
         print(result_div[exp][8:])
-        print('\n Heterozygosity outcomes')
+        print('Heterozygosity outcomes')
         print(result_hetero[exp][8:])
 
     result_div_df = pd.DataFrame(result_div)
@@ -172,12 +174,19 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
 if __name__ == '__main__':
     prefix = datetime.now().strftime("%m%d%H%M")
+    print(f'data prefix: {prefix}')
     seed = 1
-    diploid_size = [200, 1000, 1500]
-    seq_len = [1e8, 5e8, 1e9]
+    print(f'base seed : {seed}')
+    #diploid_size = [200, 1000, 1500]
+    #seq_len = [1e8, 5e8, 1e9]
+    diploid_size = [200, 500]
+    seq_len = [1e8, 1e8]
     for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
-        div_df, hetero_df = experiment(num_exp=1, num_obs=100, diploid_size=d, seq_len=s, seed=seed)
+        print(f'diploid_size: {diploid_size} seq_len: {seq_len}')
+        div_df, hetero_df = experiment(num_exp=5, num_obs=10, diploid_size=d, seq_len=s, seed=seed)
         div_df.to_csv(f'../data/{prefix}_site_diversity_{i}.csv', index=False)
+        print(f'wrote results file: ../data/{prefix}_site_diversity_{i}.csv')
         hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{i}.csv', index=False)
+        print(f'wrote results file: ../data/{prefix}_heterozygosity_{i}.csv')
         # uncomment this if you want to run for all paris of diploid_size and seq_len
-        break
+        # break

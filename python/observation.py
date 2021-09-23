@@ -63,6 +63,9 @@ class Div:
         self.site_diversity = self.ts.diversity(span_normalise=False, windows='sites')
         self.geno = self.ts.genotype_matrix()
         self.hetero = ((self.geno[:, ::2] + self.geno[:, 1::2]) == 1).sum(0) / self.num_sites
+        # below added by Ryan for fast calculation of heterozygosity
+        h2 = ((self.geno[:, ::2] + self.geno[:, 1::2]) == 1)
+        self.site_nhets = h2.sum(1) # number of heterozygotes inds at each site
 
     def get_site_diversity(self, samples_index=None):
         """returns average pairwise diversity of a set of samples across a set of sites.
@@ -73,7 +76,8 @@ class Div:
         if samples_index is None:
             samples_index = self.pop_haploid
         num_samples = len(samples_index)
-        ac = self.geno[self.sites_index, :][:, samples_index].sum(1)
+        #ac = self.geno[self.sites_index, :][:, samples_index].sum(1)
+        ac = self.geno[:, samples_index].sum(1)
         num_pairs = int(num_samples * (num_samples - 1) / 2)
         n_different_pairs = ac * (num_samples - ac)
         return np.mean(n_different_pairs / num_pairs)
@@ -85,8 +89,10 @@ class Div:
         """
         if sites_index is None:
             sites_index = self.sites_index
-        ac = ((self.geno[sites_index, ::2] + self.geno[sites_index, 1::2]) == 1).sum(0)
-        return np.mean(ac / len(sites_index))
+        # changed by Ryan
+        return(np.mean(self.site_nhets[sites_index])/self.pop_num_ind)
+        #ac = ((self.geno[sites_index, ::2] + self.geno[sites_index, 1::2]) == 1).sum(0)
+        #return np.mean(ac / len(sites_index))
 
     def bootstrap_sites_diversity(self, num_boot=500):
         """bootstrap resampling over sites for site diversity
@@ -269,6 +275,6 @@ class Fst:
 
     def jackknife_mj_sites_fst(self, n_block):
         index, sizes = jk_split(n_block, self.sites_index, self.seed)
-        num = [np.sum(self.num[i]) for i in index]
-        den = [np.sum(self.den[i]) for i in index]
+        num = np.array([np.sum(self.num[i]) for i in index])
+        den = np.array([np.sum(self.den[i]) for i in index])
         return (self.num.sum() - num) / (self.den.sum() - den), sizes
