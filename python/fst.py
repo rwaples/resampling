@@ -128,9 +128,9 @@ if __name__ == '__main__':
     #diploid_size = [200, 1000, 1500]
     #seq_len = [1e8, 5e8, 1e9]
     diploid_size = [1000]
-    seq_len = [ 5e8]
+    seq_len = [1e9]
     for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
-        df = experiment(num_exp=1, num_obs=100, diploid_size=d, seq_len=s, confidence=0.95, seed=seed)
+        df = experiment(num_exp=50, num_obs=10, diploid_size=d, seq_len=s, confidence=0.95, seed=seed)
         # df.to_csv(f'../data/{prefix}_fst.csv_{i}', index=False)
         # uncomment this if you want to run for all paris of diploid_size and seq_len
         df.to_csv(f'~/resampling/data/{prefix}_fst_{i}.csv', index=False)

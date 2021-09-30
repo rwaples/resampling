@@ -139,9 +139,12 @@ class Div:
     def jackknife_one_sites_diversity(self):
         """delete one jackknife resample over sites for diversity
         """
-        weights = np.ones((self.num_sites, self.num_sites), dtype=int)
-        np.fill_diagonal(weights, 0)
-        return (self.site_diversity * weights).sum(axis=1) / (self.num_sites - 1)
+        #weights = np.ones((self.num_sites, self.num_sites), dtype=int)
+        #np.fill_diagonal(weights, 0)
+        #return (self.site_diversity * weights).sum(axis=1) / (self.num_sites - 1)
+        div_sum = self.site_diversity.sum()
+        return (div_sum - self.site_diversity)/(len(self.site_diversity)-1)
+
 
     def jackknife_one_sites_hetero(self):
         """delete one jackknife resample over sites for heterozygosity

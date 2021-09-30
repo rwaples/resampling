@@ -180,10 +180,10 @@ if __name__ == '__main__':
     #diploid_size = [200, 1000, 1500]
     #seq_len = [1e8, 5e8, 1e9]
     diploid_size = [1000]
-    seq_len = [ 5e8]
+    seq_len = [ 1e9]
     for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
         print(f'diploid_size: {diploid_size} seq_len: {seq_len}')
-        div_df, hetero_df = experiment(num_exp=10, num_obs=100, diploid_size=d, seq_len=s, seed=seed)
+        div_df, hetero_df = experiment(num_exp=50, num_obs=10, diploid_size=d, seq_len=s, seed=seed)
         div_df.to_csv(f'~/resampling/data/{prefix}_site_diversity_{i}.csv', index=False)
         print(f'wrote results file: ~/resampling/data/{prefix}_site_diversity_{i}.csv')
         hetero_df.to_csv(f'~/resampling/data/{prefix}_heterozygosity_{i}.csv', index=False)
