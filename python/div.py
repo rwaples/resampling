@@ -13,8 +13,8 @@ import simulation as sim
 import observation as obs
 from datetime import datetime
 
-columns = ['experiment', 'num_ind', 'max_sites', 'num_observation',
-           'seq_len', 'rec_rate', 'mut_rate', 'population value',
+columns = ['experiment', 'pop_ind', 'pop_sites', 'obs_ind', 'obs_sites', 'num_observation',
+           'seq_len', 'rec_rate', 'mut_rate', 'population value', 'seed',
            'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
            'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
            'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
@@ -60,17 +60,16 @@ def calculate_ints(resample_values, confidence, obs_value):
 
 
 def experiment(num_exp, num_obs, confidence=0.95,
-               diploid_size=200, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8, seed=None):
+               pop_ind=200, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8, seed=None):
     """Run experiment for resampling of site diversity
-    @num_exp: number of experiment to run
-    @num_obs: number of observations for each num_ind and max_sites
-    @confidence: confidence level
-    @diploid_size = the population size of each population,
-        also the size of the ancestral population
-    @seq_len = length of the genome, units ~ base-pairs
-    @rec_rate = recombination rate, units = rate per bp, per generation
-    @mut_rate = mutation rate, units = rate per bp, per generation
-    @seed = set seed for the experiment
+    num_exp -- number of experiment to run
+    num_obs -- number of observations for each num_ind and max_sites
+    confidence -- confidence level
+    pop_ind -- number of individual for each population
+    seq_len -- length of the genome, units ~ base-pairs
+    rec_rate -- recombination rate, units = rate per bp, per generation
+    mut_rate -- mutation rate, units = rate per bp, per generation
+    seed -- seed for each experiment (make the experiments duplicable)
     """
     result_div, result_hetero = [], []
     n_block = int(seq_len // 5e6)
@@ -80,10 +79,10 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
     for exp in range(num_exp):
         start = datetime.now()
-        print(f'\n Experiment {exp} starts at:', exp)
+        print(f'\nExperiment {exp} starts at:', exp)
 
         pop_ts = sim.sim_one_population(
-            diploid_size=diploid_size,
+            pop_ind=pop_ind,
             seq_len=seq_len,
             rec_rate=rec_rate,
             mut_rate=mut_rate,
@@ -96,29 +95,30 @@ def experiment(num_exp, num_obs, confidence=0.95,
         print('Population heterozygosity:', pop_ts_hetero)
 
         # change the list here if you would like to explore more
-        num_ind_list = [50]  # [50, 100, 150]
-        max_sites_list = [5000, 20000, 50000]  # [1000, 2000, 3000, 4000, 5000]
-        #assert max(num_ind_list) <= pop_ts.num_individuals and max(max_sites_list) <= pop_ts.num_sites, \
-        #    "Number of ind and max_sites must be smaller than the population"
+        num_ind = [50]  # [50, 100, 150]
+        max_sites = np.logspace(2, 5, 5, dtype='int')  # [1000, 2000, 3000, 4000, 5000]
 
         # generate seeds for all possible observation ts
         np.random.seed(ts_seeds[exp])
-        obs_seeds = np.random.randint(0, 2 ** 32 - 1, size=(len(num_ind_list) * len(max_sites_list), num_obs))
+        obs_seeds = np.random.randint(0, 2 ** 32 - 1, size=(len(num_ind) * len(max_sites), num_obs))
 
         # row number of obs_seeds
         row = 0
-        for num_ind in num_ind_list:
-            for max_sites in max_sites_list:
-                print(f'The desired observation is (num_ind, max_sites) is: {num_ind, max_sites}')
+        for obs_ind in num_ind:
+            for obs_sites in max_sites:
+                print(f'The desired observation is (num_ind, max_sites) is: {obs_ind, obs_sites}')
                 position_div = np.zeros((num_obs, 15), dtype=int)
                 position_hetero = np.zeros((num_obs, 15), dtype=int)
 
                 for j in range(num_obs):
-                    if max_sites > pop_ts.num_sites:
-                        max_sites = pop_ts.num_sites
-                    obs_ts = obs.Div(pop_ts, num_ind, max_sites, seed=obs_seeds[row][j])
-                    obs_ts_diversity = np.mean(obs_ts.site_diversity)
-                    obs_ts_hetero = np.mean(obs_ts.hetero)
+                    if obs_ind > pop_ts.num_individuals:
+                        obs_ind = pop_ts.num_individuals
+                    if obs_sites > pop_ts.num_sites:
+                        obs_sites = pop_ts.num_sites
+
+                    obs_ts = obs.Div(pop_ts, obs_ind, obs_sites, seed=obs_seeds[row][j])
+                    obs_ts_diversity = obs_ts.div
+                    obs_ts_hetero = obs_ts.hetero
 
                     # confidence intervals of resampling over sites for diversity
                     intervals_sites_diversity = calculate_ints([obs_ts.bootstrap_sites_diversity(),
@@ -149,12 +149,12 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
                 # update the row number
                 row += 1
-                result_div.append([exp, num_ind, max_sites, num_obs,
-                                   seq_len, rec_rate, mut_rate, pop_ts_diversity]
+                result_div.append([exp, pop_ind, pop_ts.num_sites, obs_ind, obs_sites, num_obs,
+                                   seq_len, rec_rate, mut_rate, pop_ts_diversity, seed]
                                   + list(position_div.sum(0)))
 
-                result_hetero.append([exp, num_ind, max_sites, num_obs,
-                                      seq_len, rec_rate, mut_rate, pop_ts_hetero]
+                result_hetero.append([exp, pop_ind, pop_ts.num_sites, obs_ind, obs_sites, num_obs,
+                                      seq_len, rec_rate, mut_rate, pop_ts_diversity, seed]
                                      + list(position_hetero.sum(0)))
 
         print(f'Experiment {exp} runs:', datetime.now() - start)
@@ -175,18 +175,32 @@ def experiment(num_exp, num_obs, confidence=0.95,
 if __name__ == '__main__':
     prefix = datetime.now().strftime("%m%d%H%M")
     print(f'data prefix: {prefix}')
-    seed = 1
+
+    print('Input the number of individuals for the population, separated by a comma.')
+    pop_ind = list(map(int, input().split(',')))
+    print('Input the length of population sequence, separated by a comma.')
+    seq_len = list(map(float, input().split(',')))
+    print(pop_ind, seq_len)
+    print('Do you want to set a seed? (y/n)')
+    ans = input()
+    seed = None
+    if ans == 'y':
+        print('Input the seed number')
+        seed = int(input())
     print(f'base seed : {seed}')
-    #diploid_size = [200, 1000, 1500]
-    #seq_len = [1e8, 5e8, 1e9]
-    diploid_size = [1000]
-    seq_len = [ 1e9]
-    for i, (d, s) in enumerate(zip(diploid_size, seq_len)):
-        print(f'diploid_size: {diploid_size} seq_len: {seq_len}')
-        div_df, hetero_df = experiment(num_exp=50, num_obs=10, diploid_size=d, seq_len=s, seed=seed)
-        div_df.to_csv(f'~/resampling/data/{prefix}_site_diversity_{i}.csv', index=False)
-        print(f'wrote results file: ~/resampling/data/{prefix}_site_diversity_{i}.csv')
-        hetero_df.to_csv(f'~/resampling/data/{prefix}_heterozygosity_{i}.csv', index=False)
-        print(f'wrote results file: ~/resampling/data/{prefix}_heterozygosity_{i}.csv')
-        # uncomment this if you want to run for all paris of diploid_size and seq_len
-        # break
+
+    print('Input the number of experiments you want to run')
+    num_exp = int(input())
+    print('Input  the number of observation you want to have for each experiment')
+    num_obs = int(input())
+    print()
+    """
+    for p in pop_ind:
+        for s in seq_len:
+            print(f' diploid_size: {p} seq_len: {s}')
+            div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=s, seed=seed)
+            div_df.to_csv(f'~/resampling/data/{prefix}_site_diversity.csv', index=False)
+            print(f'wrote results file: ~/resampling/data/{prefix}_site_diversity.csv')
+            hetero_df.to_csv(f'~/resampling/data/{prefix}_heterozygosity.csv', index=False)
+            print(f'wrote results file: ~/resampling/data/{prefix}_heterozygosity.csv')
+    """

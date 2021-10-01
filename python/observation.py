@@ -11,8 +11,8 @@ import simulation as sim
 
 def jk_split(n_block, to_split, seed):
     """split sites/samples into blocks with unequal sizes
-    @n_block: number of blocks
-    @to_split: numpy array to split (self.sites_index or self.samples_index)
+    n_block -- number of blocks
+    to_split -- numpy array to split (self.sites_index or self.samples_index)
     """
     np.random.seed(seed)
     random = np.random.multinomial(
@@ -21,10 +21,10 @@ def jk_split(n_block, to_split, seed):
     ) + 1
 
     # index of sites in each block
-    index = np.split(to_split, np.cumsum(random))[0: n_block]
+    indices = np.split(to_split, np.cumsum(random))[0: n_block]
     # number of sites in each fold
-    sizes = list(map(len, index))
-    return index, np.array(sizes)
+    sizes = list(map(len, indices))
+    return indices, np.array(sizes)
 
 
 def generate_samples_index(individuals):
@@ -46,57 +46,55 @@ class Div:
 
     def __init__(self, pop_ts, num_ind, max_sites, seed=None):
         """
-        @pop_ts: population tree sequence
-        @num_ind: number of observed individual
-        @max_sites: number of observed sites
-        @seed: default None. set seed for numpy random
+        pop_ts -- population tree sequence
+        num_ind -- number of observed individual
+        max_sites -- number of observed sites
+        seed -- default None. set seed for numpy random
         """
         self.seed = seed
         self.ts = sim.observe(pop_ts, num_ind, max_sites, num_pop=1, seed=self.seed)
-        # index of haploid also samples index
-        self.pop_haploid = self.ts.samples(population=0)
         # number of individuals
-        self.pop_num_ind = num_ind
+        self.num_ind = num_ind
         self.num_samples = self.ts.num_samples
         self.num_sites = self.ts.num_sites
-        self.sites_index = np.arange(self.num_sites)
-        self.site_diversity = self.ts.diversity(span_normalise=False, windows='sites')
+        # sample node index (num_sample_node = num_ind * 2)
+        self.sample_nodes = self.ts.samples(population=0)
+        # sites index
+        self.sites = np.arange(self.num_sites)
+        # genotype matrix (num_sites, num_sample_nodes)
         self.geno = self.ts.genotype_matrix()
-        self.hetero = ((self.geno[:, ::2] + self.geno[:, 1::2]) == 1).sum(0) / self.num_sites
-        # below added by Ryan for fast calculation of heterozygosity
-        h2 = ((self.geno[:, ::2] + self.geno[:, 1::2]) == 1)
-        self.site_nhets = h2.sum(1) # number of heterozygotes inds at each site
 
-    def get_site_diversity(self, samples_index=None):
+        self.__site_diversity = self.ts.diversity(span_normalise=False, windows='sites')
+
+        h2 = ((self.geno[:, ::2] + self.geno[:, 1::2]) == 1)
+        self.__ind_nhets = h2.sum(0)  # number of heterozygotes sites at each ind
+        self.__site_nhets = h2.sum(1)  # number of heterozygotes ind at each site
+
+        # calculate statistics values
+        self.div = np.mean(self.__site_diversity)
+        self.hetero = np.mean(self.__site_nhets) / self.num_ind
+
+    def get_site_diversity(self, sample_nodes=None):
         """returns average pairwise diversity of a set of samples across a set of sites.
         Used for resampling over samples. This function is general in the sense that samples may have duplicates.
         Sites_index is the same as the self
-        @samples_index = the resampled samples index (may contain duplicate)
+        sample_nodes -- the resampled sample nodes (may contain duplicate)
         """
-        if samples_index is None:
-            samples_index = self.pop_haploid
-        num_samples = len(samples_index)
-        #ac = self.geno[self.sites_index, :][:, samples_index].sum(1)
-        ac = self.geno[:, samples_index].sum(1)
+        if sample_nodes is None:
+            sample_nodes = self.sample_nodes
+        num_samples = len(sample_nodes)
+
+        # number of 1s for each site
+        ac = self.geno[:, sample_nodes].sum(1)
         num_pairs = int(num_samples * (num_samples - 1) / 2)
+
+        # number of 0s for each site
         n_different_pairs = ac * (num_samples - ac)
         return np.mean(n_different_pairs / num_pairs)
 
-    def get_hetero(self, sites_index=None):
-        """returns average heterozygosity of a set of samples across a set of sites.
-        Used for resampling over sites. This function is general in the sense that sites may have duplicates.
-        @sites_index = the resampled samples index (may contain duplicate)
-        """
-        if sites_index is None:
-            sites_index = self.sites_index
-        # changed by Ryan
-        return(np.mean(self.site_nhets[sites_index])/self.pop_num_ind)
-        #ac = ((self.geno[sites_index, ::2] + self.geno[sites_index, 1::2]) == 1).sum(0)
-        #return np.mean(ac / len(sites_index))
-
     def bootstrap_sites_diversity(self, num_boot=500):
         """bootstrap resampling over sites for site diversity
-        @num_boot: num of bootstrap times (default 500)
+        num_boot -- num of bootstrap times (default 500)
         """
         np.random.seed(self.seed)
         weights = np.random.multinomial(
@@ -104,90 +102,88 @@ class Div:
             pvals=np.ones(self.num_sites) / self.num_sites,
             size=num_boot
         )
-        return np.mean(self.site_diversity * weights, axis=1)
+        return np.mean(self.__site_diversity * weights, axis=1)
 
     def bootstrap_sites_hetero(self, num_boot=500):
         """bootstrap resampling over sites for heterozygosity
-        @num_boot: num of bootstrap times (default 500)
+        num_boot -- num of bootstrap times (default 500)
         """
-        np.random.seed(self.seed)
-        inputs = np.random.choice(self.sites_index, (num_boot, self.num_sites), replace=True)
-        values = list(map(self.get_hetero, inputs))
-        return values
+        np.random.seed(self.seed + 1)
+        weights = np.random.multinomial(
+            n=self.num_sites,
+            pvals=np.ones(self.num_sites) / self.num_sites,
+            size=num_boot
+        )
+        return np.mean(self.__site_nhets * weights, axis=1) / self.num_ind
 
     def bootstrap_ind_diversity(self, num_boot=500):
         """bootstrap over individuals for diversity
-        @num_boot: num of bootstrap times (default 500)
+        num_boot -- num of bootstrap times (default 500)
         """
-        inputs = [sim.sample_individuals(self.pop_haploid, self.pop_num_ind, replace=True, seed=self.seed + i)
-                  for i in range(501, 501 + num_boot)]
+        np.random.seed(self.seed)
+        seeds = np.random.randint(0, 2 ** 32 - 1, num_boot)
+        inputs = [sim.sample_individuals(self.sample_nodes, self.num_ind, replace=True, seed=seeds[i])
+                  for i in range(num_boot)]
         values = list(map(self.get_site_diversity, inputs))
         return values
 
     def bootstrap_ind_hetero(self, num_boot=500):
         """bootstrap resampling over individuals for heterozygosity
-        @num_boot: num of bootstrap times (default 500)
+        num_boot -- num of bootstrap times (default 500)
         """
         np.random.seed(self.seed)
         weights = np.random.multinomial(
-            n=self.pop_num_ind,
-            pvals=np.ones(self.pop_num_ind) / self.pop_num_ind,
+            n=self.num_ind,
+            pvals=np.ones(self.num_ind) / self.num_ind,
             size=num_boot
         )
-        return np.mean(self.hetero * weights, axis=1)
+        return np.mean(self.__ind_nhets * weights / self.num_sites, axis=1)
 
     def jackknife_one_sites_diversity(self):
         """delete one jackknife resample over sites for diversity
         """
-        #weights = np.ones((self.num_sites, self.num_sites), dtype=int)
-        #np.fill_diagonal(weights, 0)
-        #return (self.site_diversity * weights).sum(axis=1) / (self.num_sites - 1)
-        div_sum = self.site_diversity.sum()
-        return (div_sum - self.site_diversity)/(len(self.site_diversity)-1)
-
+        div_sum = self.__site_diversity.sum()
+        return (div_sum - self.__site_diversity) / (self.num_sites - 1)
 
     def jackknife_one_sites_hetero(self):
         """delete one jackknife resample over sites for heterozygosity
         """
-        inputs = [np.delete(self.sites_index, i) for i in self.sites_index]
-        values = list(map(self.get_hetero, inputs))
-        return values
+        div_sum = self.__site_nhets.sum()
+        values = (div_sum - self.__site_nhets) / (self.num_sites - 1)
+        return values / self.num_ind
 
     def jackknife_one_ind_diversity(self):
         """delete one jackknife resample over individuals for diversity
         """
-        inputs = [np.delete(self.pop_haploid, [i * 2, i * 2 + 1]) for i in range(self.pop_num_ind)]
+        inputs = [np.delete(self.sample_nodes, [i * 2, i * 2 + 1]) for i in range(self.num_ind)]
         values = list(map(self.get_site_diversity, inputs))
         return values
 
     def jackknife_one_ind_hetero(self):
         """delete one jackknife resample over individuals for heterozygosity
         """
-        weights = np.ones((self.pop_num_ind, self.pop_num_ind), dtype=int)
-        np.fill_diagonal(weights, 0)
-        return (self.hetero * weights).sum(axis=1) / (self.pop_num_ind - 1)
+        div_sum = self.__ind_nhets.sum()
+        values = (div_sum - self.__ind_nhets) / self.num_sites
+        return values / (self.num_ind - 1)
 
     def jackknife_mj_sites_diversity(self, n_block):
         """delete_mj jackknife resampling methods over sits with unequal sizes for diversity
         """
-        index, sizes = jk_split(n_block, self.sites_index, seed=self.seed)
-        weights = np.ones((n_block, self.num_sites), dtype=int)
-
-        # fill deleted block with 0
-        for i, indices in enumerate(index):
-            weights[i][indices] = 0
-
-        return (self.site_diversity * weights).sum(axis=1) / ((weights == 1).sum(axis=1)), sizes
+        div_sum = self.__site_diversity.sum()
+        indices, sizes = jk_split(n_block, self.sites, seed=self.seed)
+        values = np.array([self.__site_diversity[i].sum() for i in indices])
+        return (div_sum - values) / (self.num_sites - sizes), sizes
 
     def jackknife_mj_sites_hetero(self, n_block):
         """delete_mj jackknife resampling methods over sits with unequal sizes for heterozygosity
         """
-        index, sizes = jk_split(n_block, self.sites_index, seed=self.seed + 1)
-        inputs = [np.delete(self.sites_index, i) for i in index]
-        values = list(map(self.get_hetero, inputs))
-        return values, sizes
+        div_sum = self.__site_nhets.sum()
+        indices, sizes = jk_split(n_block, self.sites, seed=self.seed + 1)
+        values = np.array([self.__site_nhets[i].sum() for i in indices])
+        return ((div_sum - values) / (self.num_sites - sizes)) / self.num_ind, sizes
 
 
+# TODO: check Fst Class
 class Fst:
     """observation of two population: for estimating fst
     """
