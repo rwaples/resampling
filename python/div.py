@@ -13,8 +13,10 @@ import simulation as sim
 import observation as obs
 from datetime import datetime
 
-columns = ['experiment', 'pop_ind', 'pop_sites', 'obs_ind', 'obs_sites', 'num_observation',
-           'seq_len', 'rec_rate', 'mut_rate', 'population value', 'seed',
+columns = ['experiment', 'exp_seed',
+           'pop_ind', 'pop_sites', 'pop_seed',
+           'obs_ind', 'obs_sites', 'num_observation',
+           'seq_len', 'rec_rate', 'mut_rate', 'population value',
            'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
            'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
            'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
@@ -79,7 +81,7 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
     for exp in range(num_exp):
         start = datetime.now()
-        print(f'\nExperiment {exp} starts at:', exp)
+        print(f'\nExperiment {exp} starts at:', start)
 
         pop_ts = sim.sim_one_population(
             pop_ind=pop_ind,
@@ -96,7 +98,7 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
         # change the list here if you would like to explore more
         num_ind = [50]  # [50, 100, 150]
-        max_sites = np.logspace(2, 5, 5, dtype='int')  # [1000, 2000, 3000, 4000, 5000]
+        max_sites = np.geomspace(start=n_block * 2, stop=9000, num=5, endpoint=True, dtype='int')
 
         # generate seeds for all possible observation ts
         np.random.seed(ts_seeds[exp])
@@ -149,19 +151,23 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
                 # update the row number
                 row += 1
-                result_div.append([exp, pop_ind, pop_ts.num_sites, obs_ind, obs_sites, num_obs,
-                                   seq_len, rec_rate, mut_rate, pop_ts_diversity, seed]
+                result_div.append([exp, seed,
+                                   pop_ind, pop_ts.num_sites, ts_seeds[exp],
+                                   obs_ind, obs_sites, num_obs,
+                                   seq_len, rec_rate, mut_rate, pop_ts_diversity]
                                   + list(position_div.sum(0)))
 
-                result_hetero.append([exp, pop_ind, pop_ts.num_sites, obs_ind, obs_sites, num_obs,
-                                      seq_len, rec_rate, mut_rate, pop_ts_diversity, seed]
+                result_hetero.append([exp, seed,
+                                      pop_ind, pop_ts.num_sites, ts_seeds[exp],
+                                      obs_ind, obs_sites, num_obs,
+                                      seq_len, rec_rate, mut_rate, pop_ts_hetero]
                                      + list(position_hetero.sum(0)))
 
         print(f'Experiment {exp} runs:', datetime.now() - start)
         print('Diversity outcomes:')
-        print(result_div[exp][8:])
+        print(result_div[exp][11:])
         print('Heterozygosity outcomes')
-        print(result_hetero[exp][8:])
+        print(result_hetero[exp][11:])
 
     result_div_df = pd.DataFrame(result_div)
     result_div_df.columns = columns
@@ -173,8 +179,6 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
 
 if __name__ == '__main__':
-    prefix = datetime.now().strftime("%m%d%H%M")
-    print(f'data prefix: {prefix}')
 
     print('Input the number of individuals for the population, separated by a comma.')
     pop_ind = list(map(int, input().split(',')))
@@ -184,6 +188,7 @@ if __name__ == '__main__':
     print('Do you want to set a seed? (y/n)')
     ans = input()
     seed = None
+
     if ans == 'y':
         print('Input the seed number')
         seed = int(input())
@@ -194,13 +199,13 @@ if __name__ == '__main__':
     print('Input  the number of observation you want to have for each experiment')
     num_obs = int(input())
     print()
-    """
+
     for p in pop_ind:
         for s in seq_len:
             print(f' diploid_size: {p} seq_len: {s}')
+            prefix = datetime.now().strftime("%m%d%H%M%S")
             div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=s, seed=seed)
-            div_df.to_csv(f'~/resampling/data/{prefix}_site_diversity.csv', index=False)
-            print(f'wrote results file: ~/resampling/data/{prefix}_site_diversity.csv')
-            hetero_df.to_csv(f'~/resampling/data/{prefix}_heterozygosity.csv', index=False)
-            print(f'wrote results file: ~/resampling/data/{prefix}_heterozygosity.csv')
-    """
+            div_df.to_csv(f'../data/{prefix}_site_diversity.csv', index=False)
+            print(f'wrote results file: ../data/{prefix}_site_diversity.csv')
+            hetero_df.to_csv(f'../data/{prefix}_heterozygosity.csv', index=False)
+            print(f'wrote results file: ../data/{prefix}_heterozygosity.csv')
