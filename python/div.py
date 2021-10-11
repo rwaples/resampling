@@ -11,12 +11,13 @@ import numpy as np
 import intervals as ci
 import simulation as sim
 import observation as obs
+import sys
 from datetime import datetime
 
-columns = ['experiment', 'exp_seed',
-           'pop_ind', 'pop_sites', 'pop_seed',
-           'obs_ind', 'obs_sites', 'num_observation',
-           'seq_len', 'rec_rate', 'mut_rate', 'population value',
+columns = ['exp_seed', 'experiment', 'tree_sequence_seed',
+           'seq_len', 'rec_rate', 'mut_rate',
+           'pop_num_ind', 'pop_num_sites', 'population_value',
+           'obs_num_ind', 'intended_obs_num_sites', 'actual_obs_num_sites', 'num_observations',
            'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
            'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
            'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
@@ -62,7 +63,7 @@ def calculate_ints(resample_values, confidence, obs_value):
 
 
 def experiment(num_exp, num_obs, confidence=0.95,
-               pop_ind=200, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8, seed=None):
+               pop_ind=200, seq_len=1e9, rec_rate=1e-8, mut_rate=1e-8, exp_seed=None):
     """Run experiment for resampling of site diversity
     num_exp -- number of experiment to run
     num_obs -- number of observations for each num_ind and max_sites
@@ -71,17 +72,17 @@ def experiment(num_exp, num_obs, confidence=0.95,
     seq_len -- length of the genome, units ~ base-pairs
     rec_rate -- recombination rate, units = rate per bp, per generation
     mut_rate -- mutation rate, units = rate per bp, per generation
-    seed -- seed for each experiment (make the experiments duplicable)
+    exp_seed -- seed for the overall experiment (make the experiments duplicable)
     """
     result_div, result_hetero = [], []
     n_block = int(seq_len // 5e6)
-    np.random.seed(seed)
+    np.random.seed(exp_seed)
     # generate seeds for population ts
     ts_seeds = np.random.randint(0, 2 ** 32 - 1, num_exp)
 
     for exp in range(num_exp):
         start = datetime.now()
-        print(f'\nExperiment {exp} starts at:', start)
+        print(f'Experiment {exp + 1} starts at:', start)
 
         pop_ts = sim.sim_one_population(
             pop_ind=pop_ind,
@@ -92,13 +93,12 @@ def experiment(num_exp, num_obs, confidence=0.95,
         )
         pop_ts_diversity = pop_ts.diversity(span_normalise=False, windows='sites').mean()
         pop_ts_hetero = get_hetero(pop_ts)
-        print('Population num sites is:', pop_ts.num_sites)
-        print('Population site diversity:', pop_ts_diversity)
-        print('Population heterozygosity:', pop_ts_hetero)
+        print('     Population num sites is:', pop_ts.num_sites)
+        print('     Population site diversity:', pop_ts_diversity)
+        print('     Population heterozygosity:', pop_ts_hetero)
 
-        # change the list here if you would like to explore more
-        num_ind = [50]  # [50, 100, 150]
-        max_sites = np.geomspace(start=n_block * 2, stop=9000, num=5, endpoint=True, dtype='int')
+        num_ind = [20, 50, 100]
+        max_sites = [5000, 20000, 50000]
 
         # generate seeds for all possible observation ts
         np.random.seed(ts_seeds[exp])
@@ -150,24 +150,24 @@ def experiment(num_exp, num_obs, confidence=0.95,
                                                   pop_ts_hetero)
 
                 # update the row number
-                row += 1
-                result_div.append([exp, seed,
-                                   pop_ind, pop_ts.num_sites, ts_seeds[exp],
-                                   obs_ind, obs_sites, num_obs,
-                                   seq_len, rec_rate, mut_rate, pop_ts_diversity]
+                result_div.append([exp_seed, (exp + 1), ts_seeds[exp],
+                                   seq_len, rec_rate, mut_rate,
+                                   pop_ind, pop_ts.num_sites, pop_ts_diversity,
+                                   obs_ind, max_sites[row % 3], obs_sites, num_obs]
                                   + list(position_div.sum(0)))
 
-                result_hetero.append([exp, seed,
-                                      pop_ind, pop_ts.num_sites, ts_seeds[exp],
-                                      obs_ind, obs_sites, num_obs,
-                                      seq_len, rec_rate, mut_rate, pop_ts_hetero]
+                result_hetero.append([exp_seed, (exp + 1), ts_seeds[exp],
+                                      seq_len, rec_rate, mut_rate,
+                                      pop_ind, pop_ts.num_sites, pop_ts_hetero,
+                                      obs_ind, max_sites[row % 3], obs_sites, num_obs]
                                      + list(position_hetero.sum(0)))
 
-        print(f'Experiment {exp} runs:', datetime.now() - start)
-        print('Diversity outcomes:')
-        print(result_div[exp][11:])
-        print('Heterozygosity outcomes')
-        print(result_hetero[exp][11:])
+                print('     Diversity coverage rate:', result_div[-1][13:])
+                print('     Heterozygosity coverage rate', result_hetero[-1][13:], '\n')
+
+                row += 1
+
+        print(f'The time that the experiment {exp + 1} runs :', datetime.now() - start)
 
     result_div_df = pd.DataFrame(result_div)
     result_div_df.columns = columns
@@ -180,32 +180,29 @@ def experiment(num_exp, num_obs, confidence=0.95,
 
 if __name__ == '__main__':
 
-    print('Input the number of individuals for the population, separated by a comma.')
-    pop_ind = list(map(int, input().split(',')))
-    print('Input the length of population sequence, separated by a comma.')
-    seq_len = list(map(float, input().split(',')))
-    print(pop_ind, seq_len)
-    print('Do you want to set a seed? (y/n)')
-    ans = input()
+    pop_ind = [200, 1000, 5000]
+    seq_len = ['1e8', '5e8', '1e9']
+
+    num_exp = int(sys.argv[1])
+    num_obs = int(sys.argv[2])
     seed = None
+    if len(sys.argv) == 4:
+        seed = int(sys.argv[3])
 
-    if ans == 'y':
-        print('Input the seed number')
-        seed = int(input())
-    print(f'base seed : {seed}')
-
-    print('Input the number of experiments you want to run')
-    num_exp = int(input())
-    print('Input  the number of observation you want to have for each experiment')
-    num_obs = int(input())
-    print()
+    print('\nNumber of experiment is:', num_exp)
+    print('Number of observation in each experiment is:', num_obs)
+    print('The seed is:', seed)
 
     for p in pop_ind:
         for s in seq_len:
-            print(f' diploid_size: {p} seq_len: {s}')
-            prefix = datetime.now().strftime("%m%d%H%M%S")
-            div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=s, seed=seed)
-            div_df.to_csv(f'../data/{prefix}_site_diversity.csv', index=False)
-            print(f'wrote results file: ../data/{prefix}_site_diversity.csv')
-            hetero_df.to_csv(f'../data/{prefix}_heterozygosity.csv', index=False)
-            print(f'wrote results file: ../data/{prefix}_heterozygosity.csv')
+            print(f'\ndiploid_size: {p} seq_len: {s} \n')
+            prefix = str(p) + "_" + s
+            ending = datetime.now().strftime("%m%d")
+            div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=float(s),
+                                           exp_seed=seed)
+            div_df.to_csv(f'../data/{prefix}_site_diversity_{ending}.csv', index=False)
+            print(f'\nwrote results file: ../data/{prefix}_site_diversity_{ending}.csv')
+            hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{ending}.csv', index=False)
+            print(f'wrote results file: ../data/{prefix}_heterozygosity_{ending}.csv \n')
+            break
+        break
