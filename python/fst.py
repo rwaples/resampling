@@ -94,10 +94,10 @@ def experiment(num_exp, num_obs, confidence=0.95, pop_ind=200,
                                            pop_ts_fst)
 
                 result_fst.append([exp_seed, (exp + 1), ts_seeds[exp],
-                               seq_len, rec_rate, mut_rate,
-                               pop_ind, pop_ts.num_sites, pop_ts_fst,
-                               obs_ind, max_sites[row % 3], obs_sites, num_obs]
-                              + list(position.sum(0)))
+                                   seq_len, rec_rate, mut_rate,
+                                   pop_ind, pop_ts.num_sites, pop_ts_fst,
+                                   obs_ind, max_sites[row % 3], obs_sites, num_obs]
+                                  + list(position.sum(0)))
 
                 print('     Fst coverage rate:', result_fst[-1][13:], '\n')
 
