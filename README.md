@@ -16,9 +16,14 @@ cd python
 # Run the file: replace the num_exp, num_obs, seed with
 # the values you want. You can leave the seed empty if you
 # don't want to have the seed for the experiment
-python3 div.py num_exp, num_obs seed
+
+# for div.py
+python3 div.py num_exp num_obs seed
+
+# for fst.py
+python3 fst.py num_exp num_obs seed
 ```
 
 # Data
-Prefix of data file represents the (pop_ind)_(seq_len).
+Prefix of data file represents the (pop_ind)_(seq_len). \
 The ending of data file represents the date (Month, Day) the data is generated. 

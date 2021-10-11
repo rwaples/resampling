@@ -1,5 +1,7 @@
 """This file contains methods for generating simulated population genetic data
 as well as observation genetic data
+
+Last Updated Date: Oct 11, 2021
 """
 import numpy as np
 import msprime

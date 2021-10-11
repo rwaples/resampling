@@ -3,6 +3,8 @@ First class is the Div class that generates an observation data from population 
 and uses resample methods to estimate diversity and heterozygosity values
 The second class is the Fst class that generates and observation from population with two subpopulation
 and uses resample methods to estimate the fst values
+
+Last Updated Date: Oct 11, 2021
 """
 import allel
 import numpy as np
@@ -183,17 +185,16 @@ class Div:
         return ((div_sum - values) / (self.num_sites - sizes)) / self.num_ind, sizes
 
 
-# TODO: check Fst Class
 class Fst:
     """observation of two population: for estimating fst
     """
 
     def __init__(self, pop_ts, num_ind, max_sites, seed=None):
         """
-        @pop_ts: population tree sequence
-        @num_ind: number of observed individual
-        @max_sites: number of observed sites
-        @seed: default None. set seed for numpy random
+        pop_ts -- population tree sequence
+        num_ind -- number of observed individual
+        max_sites -- number of observed sites
+        seed -- default None. set seed for numpy random
         """
         self.seed = seed
         self.ts = sim.observe(pop_ts, num_ind, max_sites, num_pop=2, seed=self.seed)
@@ -214,9 +215,9 @@ class Fst:
 
         This function is general in the sense that all of:
           (popA_samples, popB_samples) may have duplicates.
-        @params: wrapped for multiprocess
-            @popA_samples = the samples from the first population to be used
-            @popB_samples = the samples from the second population to be used
+        params -- wrapped for multiprocess
+            popA_samples -- the samples from the first population to be used
+            popB_samples -- the samples from the second population to be used
         """
         # count alleles within each population at the selected sites and ind
         if params is None:
@@ -232,7 +233,7 @@ class Fst:
     def bootstrap_ind_fst(self, num_boot=500):
         """Calculate Fst while bootstrap resampling over individuals.
         uses multiprocessing.Pool to run across multiple cores.
-        @num_boot = number of bootstrap times
+        num_boot -- number of bootstrap times
         """
         np.random.seed(self.seed)
         seeds = np.random.randint(0, 2 ** 32 - 1, num_boot * 2)

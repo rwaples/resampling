@@ -5,61 +5,16 @@ Resampling methods:
 1. Bootstrap over sites and samples
 2. Jackknife delete one over sites and samples
 2. Jackknife delete mj over sites and samples
+
+Last Updated Date: Oct 11, 2021
 """
 import pandas as pd
 import numpy as np
-import intervals as ci
 import simulation as sim
 import observation as obs
 import sys
 from datetime import datetime
-
-columns = ['exp_seed', 'experiment', 'tree_sequence_seed',
-           'seq_len', 'rec_rate', 'mut_rate',
-           'pop_num_ind', 'pop_num_sites', 'population_value',
-           'obs_num_ind', 'intended_obs_num_sites', 'actual_obs_num_sites', 'num_observations',
-           'bt_sites_lower', 'bt_sites_within', 'bt_sites_above',
-           'jk_one_sites_lower', 'jk_one_sites_within', 'jk_one_sites_above',
-           'jk_mj_sites_lower', 'jk_mj_sites_within', 'jk_mj_sites_above',
-           'bt_ind_lower', 'bt_ind_within', 'bt_ind_above',
-           'jk_ind_lower', 'jk_ind_within', 'jk_ind_above']
-
-# interval functions
-func_ints = [ci.bt_standard, ci.jk_delete_one, ci.jk_delete_mj]
-
-
-def location(intervals, pop_val):
-    """check whether the population values is with in, lower or above the confidence interval
-    return 1 if True else 0
-    @intervals: a list of intervals from bt, jk_one, and jk_mj
-    @pop_val: float, population value (pop_ts_diversity)
-    """
-    result = np.zeros(len(intervals) * 3, dtype=int)
-
-    for j, interval in enumerate(intervals):
-        if pop_val < interval[0]:
-            result[j * 3] += 1
-        elif interval[0] <= pop_val <= interval[1]:
-            result[j * 3 + 1] += 1
-        else:
-            result[j * 3 + 2] += 1
-
-    return result
-
-
-def get_hetero(ts):
-    geno = ts.genotype_matrix()
-    ac = ((geno[:, ::2] + geno[:, 1::2]) == 1).sum(0)
-    return np.mean(ac / ts.num_sites)
-
-
-def calculate_ints(resample_values, confidence, obs_value):
-    """calculate intervals for the resample_values
-    @resample_values: bt, jk_one, jk_mj
-    @confidence: confidence leve
-    @obs_value: observed value
-    """
-    return [func_ints[i](resample_values[i], confidence, obs_value) for i in range(len(resample_values))]
+from function import get_hetero, calculate_ints, location, columns
 
 
 def experiment(num_exp, num_obs, confidence=0.95,
@@ -74,6 +29,7 @@ def experiment(num_exp, num_obs, confidence=0.95,
     mut_rate -- mutation rate, units = rate per bp, per generation
     exp_seed -- seed for the overall experiment (make the experiments duplicable)
     """
+
     result_div, result_hetero = [], []
     n_block = int(seq_len // 5e6)
     np.random.seed(exp_seed)
@@ -113,6 +69,7 @@ def experiment(num_exp, num_obs, confidence=0.95,
                 position_hetero = np.zeros((num_obs, 15), dtype=int)
 
                 for j in range(num_obs):
+                    # make sure the observed value will not surpass the pop value
                     if obs_ind > pop_ts.num_individuals:
                         obs_ind = pop_ts.num_individuals
                     if obs_sites > pop_ts.num_sites:
@@ -201,8 +158,8 @@ if __name__ == '__main__':
             div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=float(s),
                                            exp_seed=seed)
             div_df.to_csv(f'../data/{prefix}_site_diversity_{ending}.csv', index=False)
-            print(f'\nwrote results file: ../data/{prefix}_site_diversity_{ending}.csv')
+            print(f'wrote results file: ../data/{prefix}_site_diversity_{ending}.csv')
             hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{ending}.csv', index=False)
             print(f'wrote results file: ../data/{prefix}_heterozygosity_{ending}.csv \n')
-            break
-        break
+            # break
+        # break
