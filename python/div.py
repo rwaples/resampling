@@ -13,6 +13,7 @@ import numpy as np
 import simulation as sim
 import observation as obs
 import sys
+import os
 from datetime import datetime
 from function import get_hetero, calculate_ints, location, columns
 
@@ -157,9 +158,13 @@ if __name__ == '__main__':
             ending = datetime.now().strftime("%m%d")
             div_df, hetero_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=float(s),
                                            exp_seed=seed)
-            div_df.to_csv(f'../data/{prefix}_site_diversity_{ending}.csv', index=False)
-            print(f'wrote results file: ../data/{prefix}_site_diversity_{ending}.csv')
-            hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{ending}.csv', index=False)
-            print(f'wrote results file: ../data/{prefix}_heterozygosity_{ending}.csv \n')
-            # break
-        # break
+            if os.path.isdir('../data'):
+                div_df.to_csv(f'../data/{prefix}_site_diversity_{ending}.csv', index=False)
+                print(f'wrote results file: ../data/{prefix}_site_diversity_{ending}.csv')
+                hetero_df.to_csv(f'../data/{prefix}_heterozygosity_{ending}.csv', index=False)
+                print(f'wrote results file: ../data/{prefix}_heterozygosity_{ending}.csv \n')
+            else:
+                div_df.to_csv(f'/home/users/waplesr/resampling/data/{prefix}_site_diversity_{ending}.csv', index=False)
+                print(f'wrote results file: /home/users/waplesr/resampling/data/{prefix}_site_diversity_{ending}.csv')
+                hetero_df.to_csv(f'/home/users/waplesr/resampling/data/{prefix}_heterozygosity_{ending}.csv', index=False)
+                print(f'wrote results file: /home/users/waplesr/resampling/data/{prefix}_heterozygosity_{ending}.csv')
