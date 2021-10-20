@@ -11,6 +11,7 @@ Last Updated Date: Oct 11, 2021
 import pandas as pd
 import numpy as np
 import sys
+import os
 import simulation as sim
 import observation as obs
 from datetime import datetime
@@ -133,7 +134,12 @@ if __name__ == '__main__':
             ending = datetime.now().strftime("%m%d")
             fst_df = experiment(num_exp=num_exp, num_obs=num_obs, pop_ind=p, seq_len=float(s),
                                 exp_seed=seed)
-            fst_df.to_csv(f'../data/{prefix}_fst_{ending}.csv', index=False)
-            print(f'wrote results file: ../data/{prefix}_fst_{ending}.csv')
-            # break
-        # break
+
+            if os.path.isdir('../data'):
+                fst_df.to_csv(f'../data/{prefix}_fst_{ending}.csv', index=False)
+            else:
+                fst_df.to_csv(f'/home/users/waplesr/resampling/data/{prefix}_fst_{ending}.csv', index=False)
+
+            print(f'wrote results file: */data/{prefix}_fst_{ending}.csv')
+
+
