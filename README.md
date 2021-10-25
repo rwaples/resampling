@@ -28,7 +28,7 @@ python3 fst.py num_exp num_obs seed
 Prefix of data file represents the (pop_ind)_(seq_len). \
 The ending of data file represents the date (Month, Day) the data is generated. 
 
-# Columns names
+# Column names
 * exp_seed: the seed for the overall experiment;
 * experiment: the experiment id;
 * tree_sequence_seed: the seed for generating the population tree sequence;
