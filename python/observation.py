@@ -110,7 +110,8 @@ class Div:
         """bootstrap resampling over sites for heterozygosity
         num_boot -- num of bootstrap times (default 500)
         """
-        np.random.seed(self.seed + 1)
+        seed = self.seed + 1 if self.seed else None
+        np.random.seed(seed)
         weights = np.random.multinomial(
             n=self.num_sites,
             pvals=np.ones(self.num_sites) / self.num_sites,
@@ -180,7 +181,8 @@ class Div:
         """delete_mj jackknife resampling methods over sits with unequal sizes for heterozygosity
         """
         div_sum = self.__site_nhets.sum()
-        indices, sizes = jk_split(n_block, self.sites, seed=self.seed + 1)
+        seed = self.seed + 1 if self.seed else None
+        indices, sizes = jk_split(n_block, self.sites, seed=None)
         values = np.array([self.__site_nhets[i].sum() for i in indices])
         return ((div_sum - values) / (self.num_sites - sizes)) / self.num_ind, sizes
 
